@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./HomePage.css";
-import UnimartLogo from "./images/Unimart logo.png";
+import UnimartLogo from "../assests/images/Unimart logo.png";
 import {
   FaSeedling,
   FaTractor,
@@ -122,7 +122,7 @@ export default function HomePage() {
               alt="UniMart Marketplace logo"
               className="logo-image"
             />
-            <span className="logo-main">Unimart</span>
+            <span className="logo-title">Unimart</span>
           </div>
 
           {/* Desktop Menu */}
@@ -398,7 +398,6 @@ export default function HomePage() {
                   alt="UniMart Marketplace logo"
                   className="footer-logo-image"
                 />
-                <span className="footer-logo-main">Unimart</span>
               </div>
               <p className="footer-description">
                 Unimart helps university students buy and sell items with ease.

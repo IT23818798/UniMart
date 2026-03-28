@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from "react";
 import "./HomePage.css";
+<<<<<<< Updated upstream
 import UnimartLogo from "../assests/images/Unimart logo.png";
+=======
+import UnimartLogo from "./images/Unimart logo.png";
+>>>>>>> Stashed changes
 import {
   FaSeedling,
   FaTractor,
@@ -122,7 +126,11 @@ export default function HomePage() {
               alt="UniMart Marketplace logo"
               className="logo-image"
             />
+<<<<<<< Updated upstream
             <span className="logo-title">Unimart</span>
+=======
+            <span className="logo-main">Unimart</span>
+>>>>>>> Stashed changes
           </div>
 
           {/* Desktop Menu */}
@@ -398,6 +406,10 @@ export default function HomePage() {
                   alt="UniMart Marketplace logo"
                   className="footer-logo-image"
                 />
+<<<<<<< Updated upstream
+=======
+                <span className="footer-logo-main">Unimart</span>
+>>>>>>> Stashed changes
               </div>
               <p className="footer-description">
                 Unimart helps university students buy and sell items with ease.

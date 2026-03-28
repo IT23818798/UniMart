@@ -1,13 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './BuyerDashboard.css';
-import BuyerProducts from './BuyerProducts';
-import BuyerOrders from './BuyerOrders';
-import ProductDetail from './ProductDetail';
-import OrderDetail from './OrderDetail';
-import PaymentGateway from './PaymentGateway';
 import UnimartLogo from './images/Unimart logo.png';
-import ChatPopup from './ChatPopup';
-import ChatPage from './ChatPage';
 import {
   FaUser,
   FaShoppingCart,
@@ -47,19 +40,6 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   const [loading, setLoading] = useState(!initialBuyer);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [viewingProduct, setViewingProduct] = useState(null);
-  const [viewingOrder, setViewingOrder] = useState(null);
-  
-  // Chat state
-  const [chatContext, setChatContext] = useState(null); // { otherUserId, otherUserType }
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [checkoutPhone, setCheckoutPhone] = useState('');
-  const [orderQuantity, setOrderQuantity] = useState(1);
-  const [showPaymentGateway, setShowPaymentGateway] = useState(false);
-
-  // Notification counts
-  const [unreadMessages, setUnreadMessages] = useState(0);
 
   useEffect(() => {
     if (initialBuyer) {
@@ -189,9 +169,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
   const sidebarItems = [
     { id: 'overview', label: 'Overview', icon: FaChartBar },
-    { id: 'products', label: 'Browse Products', icon: FaSearch },
     { id: 'orders', label: 'My Orders', icon: FaShoppingCart },
-    { id: 'messages', label: 'Messages', icon: FaEnvelope, badge: unreadMessages },
     { id: 'wishlist', label: 'Wishlist', icon: FaHeart },
     { id: 'addresses', label: 'Addresses', icon: FaMapMarkerAlt },
     { id: 'loyalty', label: 'Loyalty & Rewards', icon: FaMedal },
@@ -389,7 +367,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
                   value={dashboardStats.purchaseMetrics.totalSpent}
                   icon={FaDollarSign}
                   color="bg-green-500"
-                  prefix="Rs "
+                  prefix="$"
                   change={15}
                 />
                 <StatCard
@@ -427,11 +405,11 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Average Order Value</span>
-                      <span className="font-semibold">Rs {dashboardStats.purchaseMetrics.averageOrderValue}</span>
+                      <span className="font-semibold">${dashboardStats.purchaseMetrics.averageOrderValue}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Monthly Spending</span>
-                      <span className="font-semibold">Rs {dashboardStats.purchaseMetrics.monthlySpending}</span>
+                      <span className="font-semibold">${dashboardStats.purchaseMetrics.monthlySpending}</span>
                     </div>
                   </div>
                 </div>
@@ -517,203 +495,26 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
             </div>
           )}
 
-          {/* Dynamic Tabs */}
-          {activeTab === 'products' && (
-            <BuyerProducts buyer={buyer} onAddToCart={(product) => {
-              setSelectedProduct(product);
-              setOrderQuantity(1);
-            }} onProductClick={(product) => {
-              setViewingProduct(product);
-              setActiveTab('product_detail');
-            }} />
-          )}
-
-          {activeTab === 'product_detail' && viewingProduct && (
-            <ProductDetail
-              productId={viewingProduct._id}
-              buyer={buyer}
-              onBack={() => setActiveTab('products')}
-              onAddToCart={(product) => {
-                setSelectedProduct(product);
-                setOrderQuantity(1);
-              }}
-              onChatWithSeller={(sellerId, prodId) => {
-                setChatContext({ otherUserId: sellerId, otherUserType: 'Seller', productId: prodId });
-                setIsChatOpen(true);
-              }}
-            />
-          )}
-
-          {activeTab === 'messages' && (
-            <ChatPage 
-              currentUser={buyer} 
-              userType="buyer" 
-            />
-          )}
-
-          {activeTab === 'orders' && (
-            <BuyerOrders 
-              buyer={buyer} 
-              onOrderClick={(order) => {
-                setViewingOrder(order);
-                setActiveTab('order_detail');
-              }}
-            />
-          )}
-
-          {activeTab === 'order_detail' && viewingOrder && (
-            <OrderDetail
-              order={viewingOrder}
-              onBack={() => setActiveTab('orders')}
-              onOrderUpdated={setViewingOrder}
-              onChatWithSeller={(sellerId, prodId) => {
-                setChatContext({ otherUserId: sellerId, otherUserType: 'Seller', productId: prodId });
-                setIsChatOpen(true);
-              }}
-            />
+          {/* Other tabs content placeholder */}
+          {activeTab !== 'overview' && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+              <div className="text-gray-400 text-6xl mb-4">🚧</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                {sidebarItems.find(item => item.id === activeTab)?.label} Section
+              </h3>
+              <p className="text-gray-600 mb-4">
+                This section is under development. More features coming soon!
+              </p>
+              <button
+                onClick={() => setActiveTab('overview')}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Back to Dashboard
+              </button>
+            </div>
           )}
         </main>
       </div>
-
-      {/* Checkout Modal */}
-      {selectedProduct && !showPaymentGateway && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 transition-all">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto transform transition-all border border-gray-50">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-               <h2 className="text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-indigo-600">Checkout Options</h2>
-               <button onClick={() => setSelectedProduct(null)} className="text-gray-400 hover:text-red-500 transition-colors text-xl font-bold">
-                 ✕
-               </button>
-            </div>
-            
-            <div className="p-6 pb-2">
-               <div className="flex items-center gap-4 bg-white border border-gray-100 p-4 rounded-xl shadow-sm mb-6">
-                 <img src={selectedProduct.images[0] || 'https://via.placeholder.com/50'} alt={selectedProduct.title} className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
-                 <div>
-                    <h3 className="font-bold text-gray-900 leading-tight">{selectedProduct.title}</h3>
-                    <p className="text-indigo-600 font-extrabold text-lg mt-1">Rs {selectedProduct.price}</p>
-                 </div>
-               </div>
-            
-               <form onSubmit={(e) => {
-                 e.preventDefault();
-                 setShowPaymentGateway(true);
-               }} className="space-y-6">
-                 
-                 <div>
-                   <label className="flex items-center text-sm font-bold text-gray-700 mb-2">
-                     <FaBoxOpen className="mr-2 text-indigo-500" /> Quantity (Max: {selectedProduct.stock})
-                   </label>
-                   <input 
-                     type="number" 
-                     min="1" 
-                     max={selectedProduct.stock} 
-                     value={orderQuantity} 
-                     onChange={(e) => setOrderQuantity(parseInt(e.target.value) || 1)}
-                     className="w-full border border-gray-300 px-4 py-3 rounded-xl text-lg font-bold text-gray-900 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow" 
-                     required 
-                   />
-                 </div>
-                 
-                 <div>
-                   <label className="flex items-center text-sm font-bold text-gray-700 mb-2">
-                     <FaPhone className="mr-2 text-green-500" /> Contact Phone For Pickup
-                   </label>
-                   <div className="bg-indigo-50 border-l-4 border-indigo-500 p-3 rounded-r-lg mb-3">
-                     <p className="text-xs text-indigo-800 font-medium tracking-wide">
-                        In-person pickup requires a valid phone number.
-                     </p>
-                   </div>
-                   <input 
-                     type="tel" 
-                     placeholder="e.g., 0712345678" 
-                     value={checkoutPhone} 
-                     onChange={e => setCheckoutPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
-                     pattern="\d{10}"
-                     title="Phone number must be exactly 10 digits"
-                     className={`w-full border px-4 py-3 rounded-xl text-lg font-mono shadow-sm outline-none transition-shadow ${
-                       checkoutPhone && checkoutPhone.length < 10 
-                       ? 'border-red-400 focus:ring-red-500 focus:border-red-500 text-red-900' 
-                       : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900'
-                     }`}
-                     autoComplete="off"
-                     required 
-                   />
-                   {checkoutPhone && checkoutPhone.length < 10 && (
-                     <p className="text-xs font-bold text-red-500 mt-2">Phone number must be exactly 10 digits to continue.</p>
-                   )}
-                 </div>
-                 
-                 <div className="flex justify-end gap-3 pt-6 border-t border-gray-100 pb-4">
-                    <button type="button" onClick={() => setSelectedProduct(null)} className="px-5 py-2.5 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 font-bold transition-colors">
-                      Cancel
-                    </button>
-                    <button disabled={!checkoutPhone || checkoutPhone.length !== 10} type="submit" className="px-6 py-2.5 text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg hover:-translate-y-0.5 font-bold transition-all disabled:opacity-50 disabled:transform-none disabled:cursor-not-allowed">
-                      Pay Rs {(selectedProduct.price * orderQuantity).toFixed(2)}
-                    </button>
-                 </div>
-               </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Payment Gateway Modal */}
-      {showPaymentGateway && selectedProduct && (
-        <PaymentGateway 
-          amount={selectedProduct.price * orderQuantity}
-          product={selectedProduct}
-          quantity={orderQuantity}
-          contactPhone={checkoutPhone}
-          onCancel={() => setShowPaymentGateway(false)}
-          onPaymentSuccess={async () => {
-            try {
-              const response = await fetch('http://localhost:5000/api/orders/buyer', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
-                },
-                body: JSON.stringify({
-                  orderItems: [{
-                    product: selectedProduct._id,
-                    title: selectedProduct.title,
-                    image: selectedProduct.images[0] || '',
-                    price: selectedProduct.price,
-                    quantity: orderQuantity
-                  }],
-                  contactPhone: checkoutPhone
-                })
-              });
-              const data = await response.json();
-              if (data.success) {
-                alert('Order placed successfully!');
-                setShowPaymentGateway(false);
-                setSelectedProduct(null);
-                setActiveTab('orders'); // Jump to orders view
-              } else {
-                alert('Error placing order: ' + data.message);
-                setShowPaymentGateway(false);
-              }
-            } catch (error) {
-              console.error('Order error:', error);
-              alert('Something went wrong placing the order');
-              setShowPaymentGateway(false);
-            }
-          }}
-        />
-      )}
-
-      {isChatOpen && chatContext && (
-        <ChatPopup 
-          currentUser={buyer}
-          userType="buyer"
-          otherUserId={chatContext.otherUserId}
-          otherUserType={chatContext.otherUserType}
-          initialProductId={chatContext.productId}
-          onClose={() => setIsChatOpen(false)}
-        />
-      )}
     </div>
   );
 };

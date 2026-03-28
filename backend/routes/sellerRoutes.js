@@ -16,6 +16,21 @@ const {
 } = require('../controllers/sellerController');
 
 const {
+  getSellerProducts,
+  getSellerProductById,
+  createSellerProduct,
+  updateSellerProduct,
+  deleteSellerProduct
+} = require('../controllers/sellerProductController');
+
+const {
+  getSellerOrders,
+  getSellerOrderById,
+  updateSellerOrderStatus,
+  getSellerOrderStats
+} = require('../controllers/sellerOrderController');
+
+const {
   authenticateSeller,
   requireVerifiedSeller,
   requireSubscription,
@@ -200,6 +215,21 @@ router.post('/subscription/upgrade', requireVerifiedSeller, (req, res) => {
     }
   });
 });
+
+// ============ PRODUCT MANAGEMENT ROUTES ============
+// All product routes require seller authentication and verification
+router.post('/products', requireVerifiedSeller, createSellerProduct);
+router.get('/products', requireVerifiedSeller, getSellerProducts);
+router.get('/products/:id', requireVerifiedSeller, getSellerProductById);
+router.put('/products/:id', requireVerifiedSeller, updateSellerProduct);
+router.delete('/products/:id', requireVerifiedSeller, deleteSellerProduct);
+
+// ============ ORDER MANAGEMENT ROUTES ============
+// All order routes require seller authentication and verification
+router.get('/orders', requireVerifiedSeller, getSellerOrders);
+router.get('/orders/stats/summary', requireVerifiedSeller, getSellerOrderStats);
+router.get('/orders/:orderId', requireVerifiedSeller, getSellerOrderById);
+router.put('/orders/:orderId/status', requireVerifiedSeller, updateSellerOrderStatus);
 
 // Error handling middleware for seller routes
 router.use((error, req, res, next) => {

@@ -95,7 +95,11 @@
 
 .logo-sub {
   font-size: 0.75rem;
+<<<<<<< Updated upstream
   color: #0074A8;
+=======
+  color: #D4A442;
+>>>>>>> Stashed changes
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -124,6 +128,7 @@
 }
 
 .nav-link:hover {
+<<<<<<< Updated upstream
   color: #0074A8;
   background: rgba(0, 116, 168, 0.1);
 }
@@ -131,6 +136,15 @@
 .nav-link.active {
   color: #0074A8;
   background: rgba(0, 116, 168, 0.15);
+=======
+  color: #0A6B8E;
+  background: rgba(10, 107, 142, 0.1);
+}
+
+.nav-link.active {
+  color: #0A6B8E;
+  background: rgba(10, 107, 142, 0.15);
+>>>>>>> Stashed changes
 }
 
 .nav-icon {
@@ -166,6 +180,7 @@
 }
 
 .nav-btn-secondary:hover {
+<<<<<<< Updated upstream
   color: #0074A8;
   border-color: #0074A8;
   background: rgba(0, 116, 168, 0.08);
@@ -175,11 +190,26 @@
   background: linear-gradient(135deg, #0074A8, #F7931E);
   color: white;
   box-shadow: 0 8px 25px rgba(0, 116, 168, 0.3);
+=======
+  color: #0A6B8E;
+  border-color: #0A6B8E;
+  background: rgba(10, 107, 142, 0.05);
+}
+
+.nav-btn-primary {
+  background: linear-gradient(45deg, #0B5A8B, #1B7A96);
+  color: white;
+  box-shadow: 0 4px 15px rgba(11, 90, 139, 0.3);
+>>>>>>> Stashed changes
 }
 
 .nav-btn-primary:hover {
   transform: translateY(-2px);
+<<<<<<< Updated upstream
   box-shadow: 0 12px 40px rgba(0, 116, 168, 0.4);
+=======
+  box-shadow: 0 6px 20px rgba(11, 90, 139, 0.4);
+>>>>>>> Stashed changes
 }
 
 .btn-icon {
@@ -200,8 +230,13 @@
 }
 
 .nav-toggle:hover {
+<<<<<<< Updated upstream
   color: #0074A8;
   background: rgba(0, 116, 168, 0.08);
+=======
+  color: #0A6B8E;
+  background: rgba(10, 107, 142, 0.1);
+>>>>>>> Stashed changes
 }
 
 /* Mobile Menu */
@@ -241,8 +276,13 @@
 }
 
 .nav-mobile-link:hover {
+<<<<<<< Updated upstream
   color: #0074A8;
   background: rgba(0, 116, 168, 0.08);
+=======
+  color: #0A6B8E;
+  background: rgba(10, 107, 142, 0.1);
+>>>>>>> Stashed changes
 }
 
 .nav-mobile-auth {
@@ -267,7 +307,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
+<<<<<<< Updated upstream
   background: linear-gradient(135deg, #0074A8 0%, #0590D9 25%, #F7931E 75%, #A4C639 100%);
+=======
+  background: linear-gradient(135deg, #0A6B8E 0%, #1B7A96 20%, #5B8B5F 60%, #9B8A3F 100%);
+>>>>>>> Stashed changes
   background-attachment: fixed;
   overflow: hidden;
   width: 100%;
@@ -316,7 +360,11 @@
 }
 
 .hero-badge-icon {
+<<<<<<< Updated upstream
   color: #A4C639;
+=======
+  color: #D4A442;
+>>>>>>> Stashed changes
 }
 
 .hero-title {
@@ -330,7 +378,11 @@
 
 .hero-title-accent {
   display: block;
+<<<<<<< Updated upstream
   background: linear-gradient(135deg, #F7931E, #A4C639);
+=======
+  background: linear-gradient(45deg, #D4A442, #E8C547);
+>>>>>>> Stashed changes
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -369,14 +421,24 @@
 }
 
 .btn-primary {
+<<<<<<< Updated upstream
   background: linear-gradient(135deg, #0074A8, #F7931E);
   color: white;
   box-shadow: 0 8px 25px rgba(0, 116, 168, 0.4);
+=======
+  background: linear-gradient(45deg, #0B5A8B, #1B7A96);
+  color: white;
+  box-shadow: 0 4px 15px rgba(11, 90, 139, 0.4);
+>>>>>>> Stashed changes
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
+<<<<<<< Updated upstream
   box-shadow: 0 12px 35px rgba(0, 116, 168, 0.5);
+=======
+  box-shadow: 0 8px 25px rgba(11, 90, 139, 0.6);
+>>>>>>> Stashed changes
 }
 
 .btn-secondary {
@@ -414,10 +476,16 @@
 
 .stat-number {
   display: block;
+<<<<<<< Updated upstream
   font-size: 2.25rem;
   font-weight: 800;
   color: #F7931E;
   letter-spacing: -0.01em;
+=======
+  font-size: 2rem;
+  font-weight: 700;
+  color: #D4A442;
+>>>>>>> Stashed changes
 }
 
 .stat-label {
@@ -455,7 +523,11 @@
 /* Carousel Section */
 .carousel-section {
   padding: 6rem 1rem;
+<<<<<<< Updated upstream
   background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 50%, #ffffff 100%);
+=======
+  background: linear-gradient(180deg, #E3F3F8 0%, #F5F0E5 50%, #FFFFEF 100%);
+>>>>>>> Stashed changes
   width: 100%;
   margin: 0;
 }
@@ -557,12 +629,21 @@
   transition: all 0.3s ease;
 }
 
+<<<<<<< Updated upstream
 .feature-emerald .feature-icon-wrapper { background: linear-gradient(45deg, #0074A8, #0590D9); }
 .feature-blue .feature-icon-wrapper { background: linear-gradient(45deg, #F7931E, #F5A623); }
 .feature-cyan .feature-icon-wrapper { background: linear-gradient(45deg, #A4C639, #9ABE1D); }
 .feature-orange .feature-icon-wrapper { background: linear-gradient(45deg, #0074A8, #F7931E); }
 .feature-purple .feature-icon-wrapper { background: linear-gradient(45deg, #F7931E, #A4C639); }
 .feature-green .feature-icon-wrapper { background: linear-gradient(45deg, #0590D9, #A4C639); }
+=======
+.feature-emerald .feature-icon-wrapper { background: linear-gradient(45deg, #5B8B5F, #4B7B4F); }
+.feature-blue .feature-icon-wrapper { background: linear-gradient(45deg, #0A6B8E, #1B7A96); }
+.feature-cyan .feature-icon-wrapper { background: linear-gradient(45deg, #1B7A96, #0A8BBE); }
+.feature-orange .feature-icon-wrapper { background: linear-gradient(45deg, #D4A442, #E8C547); }
+.feature-purple .feature-icon-wrapper { background: linear-gradient(45deg, #9B8A3F, #B5A450); }
+.feature-green .feature-icon-wrapper { background: linear-gradient(45deg, #D4A442, #E8C547); }
+>>>>>>> Stashed changes
 
 .feature-title-modern {
   font-size: 1.35rem;
@@ -595,8 +676,13 @@
 
 /* Info Section */
 .info-section {
+<<<<<<< Updated upstream
   padding: 7rem 1rem;
   background: linear-gradient(135deg, #0074A8 0%, #0590D9 25%, #F7931E 75%, #A4C639 100%);
+=======
+  padding: 6rem 1rem;
+  background: linear-gradient(135deg, #0A6B8E 0%, #1B7A96 20%, #5B8B5F 60%, #9B8A3F 100%);
+>>>>>>> Stashed changes
   width: 100%;
   margin: 0;
 }
@@ -641,17 +727,27 @@
 }
 
 .info-icon-modern {
+<<<<<<< Updated upstream
   width: 90px;
   height: 90px;
   background: linear-gradient(135deg, #F7931E, #A4C639);
+=======
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #D4A442, #E8C547);
+>>>>>>> Stashed changes
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 2.5rem;
   color: white;
+<<<<<<< Updated upstream
   box-shadow: 0 12px 40px rgba(247, 147, 30, 0.4);
   transition: all 0.3s ease;
+=======
+  box-shadow: 0 10px 30px rgba(212, 164, 66, 0.3);
+>>>>>>> Stashed changes
 }
 
 .info-content-modern {
@@ -661,12 +757,20 @@
 .info-stats {
   display: inline-block;
   padding: 0.25rem 0.75rem;
+<<<<<<< Updated upstream
   background: rgba(247, 147, 30, 0.2);
+=======
+  background: rgba(212, 164, 66, 0.2);
+>>>>>>> Stashed changes
   border-radius: 1rem;
   font-size: 0.8rem;
   font-weight: 600;
   margin-bottom: 1rem;
+<<<<<<< Updated upstream
   color: #F7931E;
+=======
+  color: #D4A442;
+>>>>>>> Stashed changes
 }
 
 .info-title-modern {
@@ -685,7 +789,11 @@
 /* Status Section */
 .status-section {
   padding: 4rem 1rem;
+<<<<<<< Updated upstream
   background: linear-gradient(180deg, #f0f9ff 0%, #e6f7ff 100%);
+=======
+  background: linear-gradient(180deg, #F5F0E5 0%, #E3F3F8 100%);
+>>>>>>> Stashed changes
   width: 100%;
   margin: 0;
 }
@@ -721,8 +829,13 @@
 }
 
 .status-dot.active {
+<<<<<<< Updated upstream
   background: #0074A8;
   box-shadow: 0 0 10px rgba(0, 116, 168, 0.4);
+=======
+  background: #D4A442;
+  box-shadow: 0 0 10px rgba(212, 164, 66, 0.4);
+>>>>>>> Stashed changes
 }
 
 .server-response {
@@ -877,7 +990,20 @@
 }
 
 .footer-logo-icon {
+<<<<<<< Updated upstream
   display: none;
+=======
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #D4A442, #E8C547);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: white;
+  box-shadow: 0 10px 30px rgba(212, 164, 66, 0.3);
+>>>>>>> Stashed changes
 }
 
 .footer-logo-image {
@@ -937,11 +1063,19 @@
 }
 
 .social-link:hover {
+<<<<<<< Updated upstream
   background: linear-gradient(135deg, #F7931E, #A4C639);
   border-color: rgba(247, 147, 30, 0.5);
   color: white;
   transform: translateY(-2px);
   box-shadow: 0 5px 15px rgba(0, 116, 168, 0.3);
+=======
+  background: linear-gradient(135deg, #D4A442, #E8C547);
+  border-color: rgba(212, 164, 66, 0.5);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(212, 164, 66, 0.3);
+>>>>>>> Stashed changes
 }
 
 /* Footer Headings */
@@ -960,7 +1094,11 @@
   left: 0;
   width: 30px;
   height: 2px;
+<<<<<<< Updated upstream
   background: linear-gradient(90deg, #F7931E, #A4C639);
+=======
+  background: linear-gradient(90deg, #D4A442, #E8C547);
+>>>>>>> Stashed changes
   border-radius: 1px;
 }
 
@@ -985,7 +1123,11 @@
 }
 
 .footer-links a:hover {
+<<<<<<< Updated upstream
   color: #F7931E;
+=======
+  color: #D4A442;
+>>>>>>> Stashed changes
   padding-left: 1rem;
 }
 
@@ -997,7 +1139,11 @@
   transform: translateY(-50%);
   width: 0;
   height: 2px;
+<<<<<<< Updated upstream
   background: linear-gradient(90deg, #F7931E, #A4C639);
+=======
+  background: linear-gradient(90deg, #D4A442, #E8C547);
+>>>>>>> Stashed changes
   transition: width 0.3s ease;
 }
 
@@ -1019,7 +1165,11 @@
 }
 
 .contact-icon {
+<<<<<<< Updated upstream
   color: #F7931E;
+=======
+  color: #D4A442;
+>>>>>>> Stashed changes
   font-size: 1.1rem;
   margin-top: 0.2rem;
   flex-shrink: 0;
@@ -1062,7 +1212,11 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+<<<<<<< Updated upstream
   background: linear-gradient(135deg, #F7931E, #A4C639);
+=======
+  background: linear-gradient(135deg, #D4A442, #E8C547);
+>>>>>>> Stashed changes
   color: white;
   border: none;
   padding: 0.8rem 1.5rem;
@@ -1071,6 +1225,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
+<<<<<<< Updated upstream
   box-shadow: 0 5px 15px rgba(0, 116, 168, 0.3);
 }
 
@@ -1078,6 +1233,15 @@
   background: linear-gradient(135deg, #A4C639, #F7931E);
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(0, 116, 168, 0.4);
+=======
+  box-shadow: 0 5px 15px rgba(212, 164, 66, 0.3);
+}
+
+.back-to-top:hover {
+  background: linear-gradient(135deg, #E8C547, #D4A442);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(212, 164, 66, 0.4);
+>>>>>>> Stashed changes
 }
 
 /* Footer Responsive */
@@ -1198,13 +1362,22 @@
 }
 
 .dropdown-item:hover {
+<<<<<<< Updated upstream
   background: rgba(0, 116, 168, 0.1);
   color: #0074A8;
+=======
+  background: rgba(10, 107, 142, 0.1);
+  color: #0A6B8E;
+>>>>>>> Stashed changes
 }
 
 .dropdown-icon {
   font-size: 1rem;
+<<<<<<< Updated upstream
   color: #0074A8;
+=======
+  color: #0A6B8E;
+>>>>>>> Stashed changes
 }
 
 /* Mobile Dropdown */
@@ -1257,8 +1430,13 @@
 }
 
 .dropdown-item-mobile:hover {
+<<<<<<< Updated upstream
   background: rgba(0, 116, 168, 0.2);
   color: #F7931E;
+=======
+  background: rgba(212, 164, 66, 0.2);
+  color: #D4A442;
+>>>>>>> Stashed changes
 }
 
 /* Login Page Styles */
@@ -1387,7 +1565,11 @@
 
 .form-group input:focus {
   outline: none;
+<<<<<<< Updated upstream
   border-color: rgba(0, 116, 168, 0.5);
+=======
+  border-color: rgba(10, 107, 142, 0.5);
+>>>>>>> Stashed changes
   background: rgba(255, 255, 255, 0.15);
 }
 
@@ -1456,8 +1638,13 @@
 }
 
 .checkbox-label input[type="checkbox"]:checked + .checkbox-custom {
+<<<<<<< Updated upstream
   background: #0074A8;
   border-color: #0074A8;
+=======
+  background: #0A6B8E;
+  border-color: #0A6B8E;
+>>>>>>> Stashed changes
 }
 
 .checkbox-label input[type="checkbox"]:checked + .checkbox-custom::after {
@@ -1478,7 +1665,11 @@
 }
 
 .forgot-password:hover {
+<<<<<<< Updated upstream
   color: #F7931E;
+=======
+  color: #D4A442;
+>>>>>>> Stashed changes
 }
 
 .login-submit {
@@ -1511,7 +1702,11 @@
 }
 
 .login-image-section {
+<<<<<<< Updated upstream
   background: linear-gradient(135deg, rgba(0, 116, 168, 0.1), rgba(247, 147, 30, 0.1));
+=======
+  background: linear-gradient(135deg, rgba(212, 164, 66, 0.1), rgba(27, 122, 150, 0.1));
+>>>>>>> Stashed changes
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1553,7 +1748,11 @@
 
 .feature-icon {
   font-size: 1.5rem;
+<<<<<<< Updated upstream
   color: #F7931E;
+=======
+  color: #D4A442;
+>>>>>>> Stashed changes
 }
 
 .feature-item span {
@@ -1722,7 +1921,11 @@
 }
 
 .register-image-section {
+<<<<<<< Updated upstream
   background: linear-gradient(135deg, rgba(0, 116, 168, 0.1), rgba(247, 147, 30, 0.1));
+=======
+  background: linear-gradient(135deg, rgba(212, 164, 66, 0.1), rgba(27, 122, 150, 0.1));
+>>>>>>> Stashed changes
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1765,7 +1968,11 @@
 
 .benefit-icon {
   font-size: 1.5rem;
+<<<<<<< Updated upstream
   color: #F7931E;
+=======
+  color: #D4A442;
+>>>>>>> Stashed changes
   margin-top: 0.2rem;
   flex-shrink: 0;
 }

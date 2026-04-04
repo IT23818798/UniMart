@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Buyer API</title>
+</head>
+<body>
+    <h1>Test Buyer API</h1>
+    <button onclick="testRegister()">Test Register</button>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="testProfile()">Test Profile</button>
+    <button onclick="goToBuyerDashboard()">Go to Buyer Dashboard</button>
+    <div id="result"></div>
+
+    <script>
+        async function testRegister() {
+            try {
+                console.log('Testing buyer registration...');
+                const response = await fetch('http://localhost:5000/api/buyer/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        firstName: 'Test',
+                        lastName: 'Buyer',
+                        email: 'testbuyer@example.com',
+                        password: 'password123',
+                        phone: '1234567890'
+                    })
+                });
+                
+                console.log('Registration response status:', response.status);
+                const data = await response.json();
+                console.log('Registration response data:', data);
+                
+                document.getElementById('result').innerHTML = '<h3>Registration Response:</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                if (response.ok && data.data && data.data.token) {
+                    localStorage.setItem('buyerToken', data.data.token);
+                    localStorage.setItem('buyerData', JSON.stringify(data.data.buyer));
+                    console.log('Buyer registered and stored in localStorage');
+                } else {
+                    console.error('Registration failed:', data);
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                document.getElementById('result').innerHTML = 'Registration Error: ' + error.message;
+            }
+        }
+
+        async function testLogin() {
+            try {
+                console.log('Testing buyer login...');
+                const response = await fetch('http://localhost:5000/api/buyer/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'testbuyer@example.com',
+                        password: 'password123'
+                    })
+                });
+                
+                console.log('Login response status:', response.status);
+                const data = await response.json();
+                console.log('Login response data:', data);
+                
+                document.getElementById('result').innerHTML = '<h3>Login Response:</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                if (response.ok && data.data && data.data.token) {
+                    localStorage.setItem('buyerToken', data.data.token);
+                    localStorage.setItem('buyerData', JSON.stringify(data.data.buyer));
+                    console.log('Buyer logged in and stored in localStorage');
+                } else {
+                    console.error('Login failed:', data);
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                document.getElementById('result').innerHTML = 'Login Error: ' + error.message;
+            }
+        }
+
+        async function testProfile() {
+            try {
+                const token = localStorage.getItem('buyerToken');
+                console.log('Testing profile with token:', !!token);
+                const response = await fetch('http://localhost:5000/api/buyer/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                document.getElementById('result').innerHTML = 'Error: ' + error.message;
+            }
+        }
+
+        function goToBuyerDashboard() {
+            window.location.href = '/buyer-dashboard';
+        }
+
+        // Check localStorage on page load
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('buyerToken');
+            const data = localStorage.getItem('buyerData');
+            console.log('Page loaded - Token exists:', !!token, 'Data exists:', !!data);
+        });
+    </script>
+</body>
+</html>

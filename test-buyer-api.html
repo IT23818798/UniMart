@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Buyer API</title>
+</head>
+<body>
+    <h1>Test Buyer API</h1>
+    <button onclick="testRegister()">Test Register</button>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="testProfile()">Test Profile</button>
+    <div id="result"></div>
+
+    <script>
+        async function testRegister() {
+            try {
+                const response = await fetch('http://localhost:5000/api/buyer/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        firstName: 'Test',
+                        lastName: 'Buyer',
+                        email: 'testbuyer@example.com',
+                        password: 'password123'
+                    })
+                });
+                const data = await response.json();
+                document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                if (data.data && data.data.token) {
+                    localStorage.setItem('buyerToken', data.data.token);
+                    localStorage.setItem('buyerData', JSON.stringify(data.data.buyer));
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = 'Error: ' + error.message;
+            }
+        }
+
+        async function testLogin() {
+            try {
+                const response = await fetch('http://localhost:5000/api/buyer/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'testbuyer@example.com',
+                        password: 'password123'
+                    })
+                });
+                const data = await response.json();
+                document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                if (data.data && data.data.token) {
+                    localStorage.setItem('buyerToken', data.data.token);
+                    localStorage.setItem('buyerData', JSON.stringify(data.data.buyer));
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = 'Error: ' + error.message;
+            }
+        }
+
+        async function testProfile() {
+            try {
+                const token = localStorage.getItem('buyerToken');
+                const response = await fetch('http://localhost:5000/api/buyer/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                document.getElementById('result').innerHTML = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

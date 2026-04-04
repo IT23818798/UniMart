@@ -1,0 +1,185 @@
+/* Shared CSS for Products and Orders - Styled to match the modern HomePage theme */
+
+.marketplace-container {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(0, 116, 168, 0.1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.05);
+  padding: 2rem;
+  transition: all 0.3s ease;
+}
+
+.marketplace-header {
+  font-size: 1.75rem;
+  font-weight: 800;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, #0A6B8E, #1B7A96);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+
+/* Premium Table Styling */
+.marketplace-table-wrapper {
+  overflow-x: auto;
+  border-radius: 1rem;
+  border: 1px solid #e5e7eb;
+  background: white;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+}
+
+.marketplace-table {
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
+.marketplace-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  padding: 1rem 1.5rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.marketplace-table td {
+  padding: 1rem 1.5rem;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.marketplace-table tr:hover {
+  background: #f8fafc;
+}
+
+/* Premium Buttons */
+.marketplace-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+}
+
+.marketplace-btn-primary {
+  background: linear-gradient(45deg, #0B5A8B, #1B7A96);
+  color: white;
+  box-shadow: 0 4px 10px rgba(11, 90, 139, 0.2);
+}
+
+.marketplace-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px rgba(11, 90, 139, 0.3);
+}
+
+.marketplace-btn-success {
+  background: linear-gradient(45deg, #5B8B5F, #4B7B4F);
+  color: white;
+  box-shadow: 0 4px 10px rgba(91, 139, 95, 0.2);
+}
+
+.marketplace-btn-success:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px rgba(91, 139, 95, 0.3);
+}
+
+.marketplace-btn-danger {
+  color: #ef4444;
+  background: white;
+  border: 1px solid #fecaca;
+}
+
+.marketplace-btn-danger:hover {
+  background: #fef2f2;
+}
+
+/* Premium Product Cards for Browse Products */
+.marketplace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.product-card-modern {
+  background: white;
+  border-radius: 1rem;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card-modern:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 25px rgba(0, 116, 168, 0.1);
+  border-color: rgba(0, 116, 168, 0.2);
+}
+
+.product-card-img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.product-card-body {
+  padding: 1.25rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+}
+
+.product-card-price {
+  font-weight: 800;
+  color: #0A6B8E;
+  font-size: 1.1rem;
+}
+
+.product-card-seller {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-bottom: 0.5rem;
+}
+
+.product-card-desc {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-bottom: 1rem;
+  flex: 1;
+}
+
+.product-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+.badge-category {
+  font-size: 0.7rem;
+  background: #f0f9ff;
+  color: #0369a1;
+  padding: 0.25rem 0.6rem;
+  border-radius: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}

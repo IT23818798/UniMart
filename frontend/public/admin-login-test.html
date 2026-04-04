@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 400px; margin: 50px auto; }
+        .form-group { margin: 15px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        .result { margin-top: 20px; padding: 15px; border-radius: 4px; }
+        .success { background: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+        .credentials { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Admin Login Test</h1>
+        
+        <div class="credentials">
+            <h3>✅ Test Credentials</h3>
+            <p><strong>Email:</strong> admin@test.com</p>
+            <p><strong>Password:</strong> admin123</p>
+        </div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" value="admin@test.com" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" value="admin123" required>
+            </div>
+            
+            <button type="submit">🚀 Test Login</button>
+        </form>
+
+        <div id="result"></div>
+
+        <div style="margin-top: 30px;">
+            <button onclick="goToMainApp()" style="background: #28a745;">Go to Main App</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.innerHTML = '<div class="info">Testing login...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:5000/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Store token and admin info
+                    localStorage.setItem('adminToken', data.data.token);
+                    localStorage.setItem('admin', JSON.stringify(data.data.admin));
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Login Successful!</h4>
+                            <p><strong>Welcome:</strong> ${data.data.admin.firstName} ${data.data.admin.lastName}</p>
+                            <p><strong>Email:</strong> ${data.data.admin.email}</p>
+                            <p><strong>Role:</strong> ${data.data.admin.role}</p>
+                            <p><strong>Permissions:</strong> ${data.data.admin.permissions.join(', ')}</p>
+                            <p><strong>Token:</strong> ${data.data.token.substring(0, 50)}...</p>
+                            <button onclick="window.location.href='/'" style="margin-top: 10px; background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Go to Admin Dashboard</button>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Login Failed</h4>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <p><strong>Message:</strong> ${data.message}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>💥 Network Error</h4>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p>Make sure the backend server is running on port 5000</p>
+                    </div>
+                `;
+            }
+        });
+
+        function goToMainApp() {
+            window.location.href = '/';
+        }
+    </script>
+</body>
+</html>

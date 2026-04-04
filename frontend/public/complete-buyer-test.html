@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Complete Buyer Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Complete Buyer Authentication Test</h1>
+    
+    <div class="test-section">
+        <h2>Step 1: Clear Storage</h2>
+        <button onclick="clearStorage()">Clear All Storage</button>
+        <div id="storage-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Step 2: Register New Buyer</h2>
+        <button onclick="registerBuyer()">Register Buyer</button>
+        <div id="register-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Step 3: Login Buyer</h2>
+        <button onclick="loginBuyer()">Login Buyer</button>
+        <div id="login-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Step 4: Test Profile API</h2>
+        <button onclick="testProfile()">Test Profile</button>
+        <div id="profile-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Step 5: Go to Dashboard</h2>
+        <button onclick="goToDashboard()">Go to Buyer Dashboard</button>
+        <div id="dashboard-result"></div>
+    </div>
+
+    <script>
+        const testEmail = 'testbuyer' + Date.now() + '@example.com'; // Unique email each time
+        
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="${type}">${message}</div>`;
+            console.log(message);
+        }
+
+        function clearStorage() {
+            localStorage.clear();
+            sessionStorage.clear();
+            log('storage-result', '✅ Storage cleared successfully', 'success');
+        }
+
+        async function registerBuyer() {
+            try {
+                log('register-result', 'Registering buyer...', 'info');
+                
+                const response = await fetch('http://localhost:5000/api/buyer/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        firstName: 'Test',
+                        lastName: 'Buyer',
+                        email: testEmail,
+                        password: 'password123',
+                        phone: '1234567890'
+                    })
+                });
+
+                const data = await response.json();
+                console.log('Register response:', data);
+
+                if (response.ok) {
+                    localStorage.setItem('buyerToken', data.data.token);
+                    localStorage.setItem('buyerData', JSON.stringify(data.data.buyer));
+                    log('register-result', `✅ Registration successful!<br>Email: ${testEmail}<br>Token stored: ${!!data.data.token}<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+                } else {
+                    log('register-result', `❌ Registration failed: ${data.message}<pre>${JSON.stringify(data, null, 2)}</pre>`, 'error');
+                }
+            } catch (error) {
+                log('register-result', `❌ Registration error: ${error.message}`, 'error');
+            }
+        }
+
+        async function loginBuyer() {
+            try {
+                log('login-result', 'Logging in buyer...', 'info');
+                
+                const response = await fetch('http://localhost:5000/api/buyer/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        email: testEmail,
+                        password: 'password123'
+                    })
+                });
+
+                const data = await response.json();
+                console.log('Login response:', data);
+
+                if (response.ok) {
+                    localStorage.setItem('buyerToken', data.data.token);
+                    localStorage.setItem('buyerData', JSON.stringify(data.data.buyer));
+                    log('login-result', `✅ Login successful!<br>Token: ${data.data.token.substring(0, 20)}...<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+                } else {
+                    log('login-result', `❌ Login failed: ${data.message}<pre>${JSON.stringify(data, null, 2)}</pre>`, 'error');
+                }
+            } catch (error) {
+                log('login-result', `❌ Login error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testProfile() {
+            try {
+                const token = localStorage.getItem('buyerToken');
+                if (!token) {
+                    log('profile-result', '❌ No token found. Please login first.', 'error');
+                    return;
+                }
+
+                log('profile-result', 'Testing profile API...', 'info');
+                
+                const response = await fetch('http://localhost:5000/api/buyer/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                console.log('Profile response:', data);
+
+                if (response.ok) {
+                    log('profile-result', `✅ Profile API successful!<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+                } else {
+                    log('profile-result', `❌ Profile API failed (${response.status}): ${data.message}<pre>${JSON.stringify(data, null, 2)}</pre>`, 'error');
+                }
+            } catch (error) {
+                log('profile-result', `❌ Profile API error: ${error.message}`, 'error');
+            }
+        }
+
+        function goToDashboard() {
+            const token = localStorage.getItem('buyerToken');
+            const data = localStorage.getItem('buyerData');
+            
+            if (!token && !data) {
+                log('dashboard-result', '❌ No authentication data found. Please login first.', 'error');
+                return;
+            }
+            
+            log('dashboard-result', '✅ Redirecting to buyer dashboard...', 'success');
+            setTimeout(() => {
+                window.location.href = '/buyer-dashboard';
+            }, 1000);
+        }
+
+        // Show current storage state on page load
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('buyerToken');
+            const data = localStorage.getItem('buyerData');
+            console.log('Page loaded - Token:', !!token, 'Data:', !!data);
+            
+            if (token || data) {
+                log('storage-result', `Storage state: Token=${!!token}, Data=${!!data}`, 'info');
+            }
+        });
+    </script>
+</body>
+</html>

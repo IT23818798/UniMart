@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Admin Permissions</title>
+</head>
+<body>
+    <h1>Fix Admin Permissions</h1>
+    
+    <div>
+        <h2>Update Admin Permissions</h2>
+        <button onclick="updatePermissions()">Update Admin Permissions</button>
+        <div id="update-result"></div>
+    </div>
+
+    <div>
+        <h2>Check Current Admin</h2>
+        <button onclick="checkCurrentAdmin()">Check Current Admin</button>
+        <div id="admin-check-result"></div>
+    </div>
+
+    <script>
+        async function updatePermissions() {
+            try {
+                const token = localStorage.getItem('adminToken');
+                if (!token) {
+                    document.getElementById('update-result').innerHTML = '<p style="color: red;">No admin token found. Please login first.</p>';
+                    return;
+                }
+
+                const response = await fetch('http://localhost:5000/api/admin/update-permissions', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('update-result').innerHTML = `
+                        <p style="color: green;">✅ Success: ${data.message}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    document.getElementById('update-result').innerHTML = `
+                        <p style="color: red;">❌ Error: ${data.message}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('update-result').innerHTML = `<p style="color: red;">❌ Network Error: ${error.message}</p>`;
+            }
+        }
+
+        async function checkCurrentAdmin() {
+            try {
+                const token = localStorage.getItem('adminToken');
+                if (!token) {
+                    document.getElementById('admin-check-result').innerHTML = '<p style="color: red;">No admin token found. Please login first.</p>';
+                    return;
+                }
+
+                const response = await fetch('http://localhost:5000/api/admin/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const admin = data.data.admin;
+                    document.getElementById('admin-check-result').innerHTML = `
+                        <h3>Current Admin:</h3>
+                        <p><strong>Name:</strong> ${admin.fullName}</p>
+                        <p><strong>Email:</strong> ${admin.email}</p>
+                        <p><strong>Role:</strong> ${admin.role}</p>
+                        <p><strong>Has manage_sellers permission:</strong> ${admin.permissions ? admin.permissions.includes('manage_sellers') : 'No permissions'}</p>
+                        <h4>All Permissions:</h4>
+                        <pre>${JSON.stringify(admin.permissions, null, 2)}</pre>
+                    `;
+                } else {
+                    document.getElementById('admin-check-result').innerHTML = `<p style="color: red;">❌ Error: ${data.message}</p>`;
+                }
+            } catch (error) {
+                document.getElementById('admin-check-result').innerHTML = `<p style="color: red;">❌ Network Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

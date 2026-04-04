@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Permission Test</title>
+</head>
+<body>
+    <h1>Admin Permission Test</h1>
+    
+    <div>
+        <h2>Check Admin Data</h2>
+        <button onclick="checkAdminData()">Check Admin Data</button>
+        <div id="admin-result"></div>
+    </div>
+
+    <script>
+        function checkAdminData() {
+            const adminData = localStorage.getItem('adminData');
+            const adminToken = localStorage.getItem('adminToken');
+            
+            if (adminData) {
+                const admin = JSON.parse(adminData);
+                document.getElementById('admin-result').innerHTML = `
+                    <h3>Admin Data Found:</h3>
+                    <pre>${JSON.stringify(admin, null, 2)}</pre>
+                    <h3>Has manage_sellers permission:</h3>
+                    <p>${admin.permissions ? admin.permissions.includes('manage_sellers') : 'No permissions array'}</p>
+                    <h3>Role:</h3>
+                    <p>${admin.role || 'No role'}</p>
+                    <h3>Token exists:</h3>
+                    <p>${!!adminToken}</p>
+                `;
+            } else {
+                document.getElementById('admin-result').innerHTML = '<p>No admin data found in localStorage</p>';
+            }
+        }
+        
+        // Auto-check on load
+        window.addEventListener('load', checkAdminData);
+    </script>
+</body>
+</html>

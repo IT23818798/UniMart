@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Sellers API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffebee; border-left: 4px solid #f44336; }
+        .success { background: #e8f5e9; border-left: 4px solid #4caf50; }
+        button { padding: 10px 20px; margin: 5px; }
+        input { padding: 8px; margin: 5px; width: 300px; }
+    </style>
+</head>
+<body>
+    <h1>Test Sellers API</h1>
+    
+    <div>
+        <h3>Admin Login</h3>
+        <input type="email" id="email" placeholder="Admin Email" value="admin@test.com">
+        <input type="password" id="password" placeholder="Admin Password" value="Admin123!">
+        <button onclick="loginAdmin()">Login</button>
+    </div>
+
+    <div>
+        <h3>Test Sellers API</h3>
+        <button onclick="testSellersAPI()">Test Get Sellers</button>
+        <button onclick="checkAdminToken()">Check Token</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        let adminToken = localStorage.getItem('adminToken');
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            results.appendChild(div);
+            console.log(message);
+        }
+
+        function checkAdminToken() {
+            const token = localStorage.getItem('adminToken');
+            if (token) {
+                log(`Token exists: ${token.substring(0, 20)}...`, 'success');
+            } else {
+                log('No token found', 'error');
+            }
+        }
+
+        async function loginAdmin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('http://localhost:5000/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    adminToken = data.token;
+                    localStorage.setItem('adminToken', adminToken);
+                    log(`Login successful! Token: ${adminToken.substring(0, 20)}...`, 'success');
+                    log(`Admin: ${data.admin.firstName} ${data.admin.lastName}`, 'success');
+                    log(`Permissions: ${data.admin.permissions.join(', ')}`, 'success');
+                } else {
+                    log(`Login failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`Login error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSellersAPI() {
+            if (!adminToken) {
+                log('Please login first', 'error');
+                return;
+            }
+
+            try {
+                log('Testing sellers API...', 'info');
+                
+                const response = await fetch('http://localhost:5000/api/admin/sellers', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+
+                log(`Response status: ${response.status} ${response.statusText}`, 'info');
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`✅ Sellers API Success!`, 'success');
+                    log(`Found ${data.data?.sellers?.length || 0} sellers`, 'success');
+                    if (data.data?.sellers?.length > 0) {
+                        log(`First seller: ${JSON.stringify(data.data.sellers[0], null, 2)}`, 'success');
+                    }
+                } else {
+                    log(`❌ Sellers API Error: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Request error: ${error.message}`, 'error');
+            }
+        }
+
+        // Check token on load
+        window.onload = () => {
+            checkAdminToken();
+        };
+    </script>
+</body>
+</html>

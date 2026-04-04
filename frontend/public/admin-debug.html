@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px; }
+        .success { background: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Admin Debug Console</h1>
+        
+        <div class="section info">
+            <h3>📋 Current Status</h3>
+            <div id="status">Checking...</div>
+        </div>
+
+        <div class="section">
+            <h3>🔑 localStorage Data</h3>
+            <pre id="localStorage"></pre>
+        </div>
+
+        <div class="section">
+            <h3>🧪 API Tests</h3>
+            <button onclick="testDashboardAPI()">Test Dashboard API</button>
+            <button onclick="testSellersAPI()">Test Sellers API</button>
+            <button onclick="clearStorage()">Clear Storage</button>
+            <div id="apiResults"></div>
+        </div>
+
+        <div class="section">
+            <h3>🔗 Quick Actions</h3>
+            <button onclick="goToLogin()">Go to Login</button>
+            <button onclick="goToAdminDashboard()">Go to Admin Dashboard</button>
+        </div>
+    </div>
+
+    <script>
+        function updateStatus() {
+            const adminToken = localStorage.getItem('adminToken');
+            const admin = JSON.parse(localStorage.getItem('admin') || 'null');
+            
+            const statusDiv = document.getElementById('status');
+            if (adminToken && admin) {
+                statusDiv.innerHTML = `
+                    <div class="success">
+                        ✅ Admin logged in: ${admin.email} (${admin.role})
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="error">
+                        ❌ No admin logged in
+                    </div>
+                `;
+            }
+
+            // Update localStorage display
+            const localStorageDiv = document.getElementById('localStorage');
+            localStorageDiv.textContent = JSON.stringify({
+                adminToken: adminToken ? 'Present' : 'Missing',
+                admin: admin,
+                allKeys: Object.keys(localStorage)
+            }, null, 2);
+        }
+
+        async function testDashboardAPI() {
+            const resultsDiv = document.getElementById('apiResults');
+            const token = localStorage.getItem('adminToken');
+            
+            resultsDiv.innerHTML = '<div class="info">Testing Dashboard API...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:5000/api/admin/dashboard', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+
+                const result = {
+                    status: response.status,
+                    ok: response.ok,
+                    data: await response.json()
+                };
+
+                resultsDiv.innerHTML = `
+                    <div class="${response.ok ? 'success' : 'error'}">
+                        <h4>Dashboard API Result:</h4>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h4>Dashboard API Error:</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function testSellersAPI() {
+            const resultsDiv = document.getElementById('apiResults');
+            const token = localStorage.getItem('adminToken');
+            
+            resultsDiv.innerHTML = '<div class="info">Testing Sellers API...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:5000/api/admin/sellers', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+
+                const result = {
+                    status: response.status,
+                    ok: response.ok,
+                    data: await response.json()
+                };
+
+                resultsDiv.innerHTML = `
+                    <div class="${response.ok ? 'success' : 'error'}">
+                        <h4>Sellers API Result:</h4>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h4>Sellers API Error:</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        function clearStorage() {
+            localStorage.clear();
+            updateStatus();
+            document.getElementById('apiResults').innerHTML = '<div class="info">Storage cleared!</div>';
+        }
+
+        function goToLogin() {
+            window.location.href = '/';
+        }
+
+        function goToAdminDashboard() {
+            window.location.href = '/admin-dashboard';
+        }
+
+        // Initialize
+        updateStatus();
+        setInterval(updateStatus, 5000); // Update every 5 seconds
+    </script>
+</body>
+</html>

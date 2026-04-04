@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Debug Test</title>
+</head>
+<body>
+    <h1>Login Debug Test</h1>
+    
+    <div>
+        <h2>Test Admin Login</h2>
+        <button onclick="testAdminLogin()">Test Admin Login</button>
+        <div id="admin-result"></div>
+    </div>
+
+    <div>
+        <h2>Test Seller Login</h2>
+        <button onclick="testSellerLogin()">Test Seller Login</button>
+        <div id="seller-result"></div>
+    </div>
+
+    <div>
+        <h2>Test Buyer Login</h2>
+        <button onclick="testBuyerLogin()">Test Buyer Login</button>
+        <div id="buyer-result"></div>
+    </div>
+
+    <script>
+        async function testAdminLogin() {
+            try {
+                console.log('Testing admin login...');
+                const response = await fetch('http://localhost:5000/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        email: 'admin@example.com',
+                        password: 'admin123'
+                    })
+                });
+
+                const data = await response.json();
+                console.log('Admin login response:', response.status, data);
+                
+                document.getElementById('admin-result').innerHTML = 
+                    `<h3>Status: ${response.status}</h3><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    
+            } catch (error) {
+                console.error('Admin login error:', error);
+                document.getElementById('admin-result').innerHTML = `<h3>Error: ${error.message}</h3>`;
+            }
+        }
+
+        async function testSellerLogin() {
+            try {
+                console.log('Testing seller login...');
+                const response = await fetch('http://localhost:5000/api/seller/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        email: 'seller@example.com',
+                        password: 'seller123'
+                    })
+                });
+
+                const data = await response.json();
+                console.log('Seller login response:', response.status, data);
+                
+                document.getElementById('seller-result').innerHTML = 
+                    `<h3>Status: ${response.status}</h3><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    
+            } catch (error) {
+                console.error('Seller login error:', error);
+                document.getElementById('seller-result').innerHTML = `<h3>Error: ${error.message}</h3>`;
+            }
+        }
+
+        async function testBuyerLogin() {
+            try {
+                console.log('Testing buyer login...');
+                const response = await fetch('http://localhost:5000/api/buyer/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        email: 'testbuyer@example.com',
+                        password: 'password123'
+                    })
+                });
+
+                const data = await response.json();
+                console.log('Buyer login response:', response.status, data);
+                
+                document.getElementById('buyer-result').innerHTML = 
+                    `<h3>Status: ${response.status}</h3><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    
+            } catch (error) {
+                console.error('Buyer login error:', error);
+                document.getElementById('buyer-result').innerHTML = `<h3>Error: ${error.message}</h3>`;
+            }
+        }
+    </script>
+</body>
+</html>

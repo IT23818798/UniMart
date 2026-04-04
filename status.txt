@@ -1,0 +1,160 @@
+On branch feature/user-management
+Your branch is up to date with 'origin/feature/user-management'.
+
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+	renamed:    backend/models/order.js -> backend/models/Order.js
+
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	deleted:    backend/controllers/adminOrderController.js
+	deleted:    backend/controllers/adminProductController.js
+	modified:   backend/controllers/orderController.js
+	modified:   backend/controllers/sellerController.js
+	deleted:    backend/controllers/sellerOrderController.js
+	deleted:    backend/controllers/sellerProductController.js
+	modified:   backend/middleware/buyerAuth.js
+	modified:   backend/middleware/sellerAuth.js
+	modified:   backend/models/Order.js
+	modified:   backend/models/Product.js
+	modified:   backend/models/Seller.js
+	modified:   backend/node_modules/.package-lock.json
+	modified:   backend/node_modules/body-parser/HISTORY.md
+	modified:   backend/node_modules/body-parser/LICENSE
+	modified:   backend/node_modules/body-parser/README.md
+	modified:   backend/node_modules/body-parser/index.js
+	modified:   backend/node_modules/body-parser/lib/read.js
+	modified:   backend/node_modules/body-parser/lib/types/json.js
+	modified:   backend/node_modules/body-parser/lib/types/raw.js
+	modified:   backend/node_modules/body-parser/lib/types/text.js
+	modified:   backend/node_modules/body-parser/lib/types/urlencoded.js
+	modified:   backend/node_modules/body-parser/node_modules/http-errors/HISTORY.md
+	modified:   backend/node_modules/body-parser/node_modules/http-errors/LICENSE
+	modified:   backend/node_modules/body-parser/node_modules/http-errors/README.md
+	modified:   backend/node_modules/body-parser/node_modules/http-errors/index.js
+	modified:   backend/node_modules/body-parser/node_modules/http-errors/package.json
+	modified:   backend/node_modules/body-parser/node_modules/statuses/HISTORY.md
+	modified:   backend/node_modules/body-parser/node_modules/statuses/LICENSE
+	modified:   backend/node_modules/body-parser/node_modules/statuses/README.md
+	modified:   backend/node_modules/body-parser/node_modules/statuses/codes.json
+	modified:   backend/node_modules/body-parser/node_modules/statuses/index.js
+	modified:   backend/node_modules/body-parser/node_modules/statuses/package.json
+	modified:   backend/node_modules/body-parser/package.json
+	modified:   backend/node_modules/brace-expansion/LICENSE
+	modified:   backend/node_modules/brace-expansion/README.md
+	modified:   backend/node_modules/brace-expansion/index.js
+	modified:   backend/node_modules/brace-expansion/package.json
+	modified:   backend/node_modules/express/History.md
+	modified:   backend/node_modules/express/LICENSE
+	modified:   backend/node_modules/express/Readme.md
+	modified:   backend/node_modules/express/index.js
+	modified:   backend/node_modules/express/lib/application.js
+	modified:   backend/node_modules/express/lib/express.js
+	modified:   backend/node_modules/express/lib/middleware/init.js
+	modified:   backend/node_modules/express/lib/middleware/query.js
+	modified:   backend/node_modules/express/lib/request.js
+	modified:   backend/node_modules/express/lib/response.js
+	modified:   backend/node_modules/express/lib/router/index.js
+	modified:   backend/node_modules/express/lib/router/layer.js
+	modified:   backend/node_modules/express/lib/router/route.js
+	modified:   backend/node_modules/express/lib/utils.js
+	modified:   backend/node_modules/express/lib/view.js
+	modified:   backend/node_modules/express/package.json
+	modified:   backend/node_modules/jws/CHANGELOG.md
+	modified:   backend/node_modules/jws/LICENSE
+	modified:   backend/node_modules/jws/index.js
+	modified:   backend/node_modules/jws/lib/data-stream.js
+	modified:   backend/node_modules/jws/lib/sign-stream.js
+	modified:   backend/node_modules/jws/lib/tostring.js
+	modified:   backend/node_modules/jws/lib/verify-stream.js
+	modified:   backend/node_modules/jws/package.json
+	modified:   backend/node_modules/jws/readme.md
+	modified:   backend/node_modules/minimatch/LICENSE
+	modified:   backend/node_modules/minimatch/README.md
+	modified:   backend/node_modules/minimatch/minimatch.js
+	modified:   backend/node_modules/minimatch/package.json
+	modified:   backend/node_modules/path-to-regexp/LICENSE
+	modified:   backend/node_modules/path-to-regexp/Readme.md
+	modified:   backend/node_modules/path-to-regexp/index.js
+	modified:   backend/node_modules/path-to-regexp/package.json
+	modified:   backend/node_modules/picomatch/LICENSE
+	modified:   backend/node_modules/picomatch/README.md
+	modified:   backend/node_modules/picomatch/index.js
+	modified:   backend/node_modules/picomatch/lib/constants.js
+	modified:   backend/node_modules/picomatch/lib/parse.js
+	modified:   backend/node_modules/picomatch/lib/picomatch.js
+	modified:   backend/node_modules/picomatch/lib/scan.js
+	modified:   backend/node_modules/picomatch/lib/utils.js
+	modified:   backend/node_modules/picomatch/package.json
+	modified:   backend/node_modules/qs/.editorconfig
+	modified:   backend/node_modules/qs/.github/FUNDING.yml
+	modified:   backend/node_modules/qs/.github/SECURITY.md
+	modified:   backend/node_modules/qs/.github/THREAT_MODEL.md
+	modified:   backend/node_modules/qs/.nycrc
+	modified:   backend/node_modules/qs/CHANGELOG.md
+	modified:   backend/node_modules/qs/LICENSE.md
+	modified:   backend/node_modules/qs/README.md
+	modified:   backend/node_modules/qs/dist/qs.js
+	modified:   backend/node_modules/qs/eslint.config.mjs
+	modified:   backend/node_modules/qs/lib/formats.js
+	modified:   backend/node_modules/qs/lib/index.js
+	modified:   backend/node_modules/qs/lib/parse.js
+	modified:   backend/node_modules/qs/lib/stringify.js
+	modified:   backend/node_modules/qs/lib/utils.js
+	modified:   backend/node_modules/qs/package.json
+	modified:   backend/node_modules/qs/test/empty-keys-cases.js
+	modified:   backend/node_modules/qs/test/parse.js
+	modified:   backend/node_modules/qs/test/stringify.js
+	modified:   backend/node_modules/qs/test/utils.js
+	modified:   backend/node_modules/raw-body/LICENSE
+	modified:   backend/node_modules/raw-body/README.md
+	modified:   backend/node_modules/raw-body/index.d.ts
+	modified:   backend/node_modules/raw-body/index.js
+	modified:   backend/node_modules/raw-body/node_modules/http-errors/HISTORY.md
+	modified:   backend/node_modules/raw-body/node_modules/http-errors/LICENSE
+	modified:   backend/node_modules/raw-body/node_modules/http-errors/README.md
+	modified:   backend/node_modules/raw-body/node_modules/http-errors/index.js
+	modified:   backend/node_modules/raw-body/node_modules/http-errors/package.json
+	modified:   backend/node_modules/raw-body/node_modules/statuses/HISTORY.md
+	modified:   backend/node_modules/raw-body/node_modules/statuses/LICENSE
+	modified:   backend/node_modules/raw-body/node_modules/statuses/README.md
+	modified:   backend/node_modules/raw-body/node_modules/statuses/codes.json
+	modified:   backend/node_modules/raw-body/node_modules/statuses/index.js
+	modified:   backend/node_modules/raw-body/node_modules/statuses/package.json
+	modified:   backend/node_modules/raw-body/package.json
+	modified:   backend/package-lock.json
+	modified:   backend/routes/adminRoutes.js
+	modified:   backend/routes/sellerRoutes.js
+	modified:   backend/server.js
+	modified:   frontend/node_modules/.vite/deps/_metadata.json
+	modified:   frontend/node_modules/.vite/deps/axios.js
+	modified:   frontend/node_modules/.vite/deps/axios.js.map
+	modified:   frontend/node_modules/.vite/deps/html2canvas-khmqFy4k.js
+	modified:   frontend/node_modules/.vite/deps/index.es-B3p6FtRM.js
+	modified:   frontend/node_modules/.vite/deps/jspdf.js
+	modified:   frontend/node_modules/.vite/deps/purify.es-e71dJ2B8.js
+	modified:   frontend/node_modules/.vite/deps/react-dom.js
+	modified:   frontend/node_modules/.vite/deps/react-dom_client.js
+	modified:   frontend/node_modules/.vite/deps/react-icons_fa.js
+	modified:   frontend/src/components/AdminDashboard.jsx
+	modified:   frontend/src/components/BuyerDashboard.jsx
+	modified:   frontend/src/components/HomePage.css
+	modified:   frontend/src/components/HomePage.jsx
+	modified:   frontend/src/components/SellerDashboard.jsx
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	backend/controllers/productController.js
+	backend/routes/orderRoutes.js
+	backend/routes/productRoutes.js
+	frontend/src/components/BuyerOrders.jsx
+	frontend/src/components/BuyerProducts.jsx
+	frontend/src/components/OrderDetail.jsx
+	frontend/src/components/ProductDetail.jsx
+	frontend/src/components/ProductsAndOrders.css
+	frontend/src/components/SellerOrders.jsx
+	frontend/src/components/SellerProducts.jsx
+	frontend/src/components/SellerReviews.jsx
+	status.txt
+

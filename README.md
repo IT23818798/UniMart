@@ -11,6 +11,6 @@ need to preview star points and card payment option in order summary page.
 need to preview star points and card payment option in order history page.
 need to preview star points and card payment option in order details page.
 need to preview star points and card payment option in order summary page.
-need privew star point rate in buyer dashboard
+need privew star point rate in buyer overview page
 
 in message with seller buyer can upload images around 500kb - 2mb size and seller can preview this image in chat window and also need chat delete option and need chat search option and need chat tag reply option

@@ -1,3 +1,4 @@
+//frontend/src/components/AdminApp.jsx
 import React, { useState, useEffect } from 'react';
 import AdminDashboard from './AdminDashboard';
 import HomePage from './HomePage';

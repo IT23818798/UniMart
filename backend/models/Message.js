@@ -25,7 +25,7 @@ const messageSchema = new mongoose.Schema({
     type: String,
     trim: true,
     required: function() {
-      return !this.imageUrl;
+      return !this.imageUrl && !this.isUnsent;
     }
   },
   imageUrl: {

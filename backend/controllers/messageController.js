@@ -267,26 +267,36 @@ exports.deleteMessage = async (req, res) => {
     const message = await Message.findById(id);
     if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
 
-    const myId = String(userId);
-    const senderId = String(message.sender);
-    const recipientId = String(message.recipient);
+    if (!userId) return res.status(401).json({ success: false, message: 'Not authorized' });
 
-    if (senderId === myId) {
-      // Unsend for both sides (Sender is deleting their own message)
-      message.isUnsent = true;
-      message.content = '';
-      message.imageUrl = null;
-    } else if (recipientId === myId) {
-      // Delete only for recipient (Recipient is hiding a message they received)
-      message.recipientDeleted = true;
+    const myIdStr = String(userId);
+    // Robustly extract sender/recipient IDs (handles both populated and unpopulated)
+    const senderIdStr = String(message.sender?._id || message.sender || '');
+    const recipientIdStr = String(message.recipient?._id || message.recipient || '');
+
+    if (senderIdStr === myIdStr) {
+      // SENDER: Unsend for everyone
+      await Message.updateOne(
+        { _id: id },
+        { $set: { isUnsent: true, content: '', imageUrl: null } }
+      );
+    } else if (recipientIdStr === myIdStr) {
+      // RECIPIENT: Delete only for self
+      await Message.updateOne(
+        { _id: id },
+        { $set: { recipientDeleted: true } }
+      );
     } else {
-      return res.status(401).json({ success: false, message: 'Not authorized' });
+      return res.status(401).json({ success: false, message: 'Not authorized for this message' });
     }
 
-    await message.save();
-    res.status(200).json({ success: true, message: message.isUnsent ? 'Message unsent' : 'Message deleted' });
+    res.status(200).json({ 
+      success: true, 
+      message: senderIdStr === myIdStr ? 'Message unsent for all' : 'Message deleted for you' 
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error' });
+    console.error('Delete message error:', error);
+    res.status(500).json({ success: false, message: 'Server Error', details: error.message });
   }
 };
 
@@ -295,8 +305,10 @@ exports.deleteMessage = async (req, res) => {
 // @access  Private
 exports.deleteConversation = async (req, res) => {
   try {
-    const userId = req.buyer?.id || req.seller?.id;
-    const userType = req.buyer ? 'Buyer' : 'Seller';
+    const userIdNum = req.buyer?.id || req.seller?.id;
+    if (!userIdNum) return res.status(401).json({ success: false, message: 'Not authorized' });
+
+    const userId = String(userIdNum);
     const { otherId } = req.params;
     const { otherType, productId } = req.query;
 
@@ -307,8 +319,9 @@ exports.deleteConversation = async (req, res) => {
       ]
     };
     
-    // Add product isolation if productId exists
-    if (productId && productId !== 'undefined' && productId !== 'null') {
+    // Add product isolation if productId exists and is a valid ObjectId
+    const mongoose = require('mongoose');
+    if (productId && mongoose.Types.ObjectId.isValid(productId)) {
       query.productId = productId;
     }
 
@@ -326,6 +339,7 @@ exports.deleteConversation = async (req, res) => {
 
     res.status(200).json({ success: true, message: 'Conversation deleted from your side' });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error' });
+    console.error('Delete conversation error:', error);
+    res.status(500).json({ success: false, message: 'Server Error', details: error.message });
   }
 };

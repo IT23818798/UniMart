@@ -144,29 +144,34 @@ const ChatPopup = ({ currentUser, userType, otherUserId, otherUserType, onClose,
     };
 
     const deleteMessage = async (msgId) => {
-        if (!window.confirm('Delete this message for everyone?')) return;
+        if (!window.confirm('Remove message?')) return;
         try {
             const res = await fetch(`${API_URL}/api/messages/${msgId}`, {
                 method: 'DELETE',
                 headers,
                 credentials: 'include'
             });
+            const data = await res.json();
             if (res.ok) {
-                setMessages(prev => prev.map(m => {
-                    if (m._id === msgId) {
-                        return { ...m, isUnsent: true, content: '', imageUrl: null };
-                    }
-                    return m;
-                }));
+                if (data.message && data.message.includes('unsent')) {
+                    // Turn it into placeholder locally
+                    setMessages(prev => prev.map(m => 
+                        m._id === msgId ? { ...m, isUnsent: true, content: '', imageUrl: null } : m
+                    ));
+                } else {
+                    // Remove locally (if we were the recipient)
+                    setMessages(prev => prev.filter(m => m._id !== msgId));
+                }
             }
         } catch (e) { console.error(e); }
     };
 
     const isMine = (msg) => {
+        if (!msg) return false;
         const senderId = (msg.sender?._id || msg.sender)?.toString();
         const myId = currentUserId?.toString() || currentUser?._id?.toString() || currentUser?.id?.toString();
         if (senderId && myId) return senderId === myId;
-        return msg.senderType?.toLowerCase() === userType?.toLowerCase();
+        return false;
     };
 
     if (isMinimized) {

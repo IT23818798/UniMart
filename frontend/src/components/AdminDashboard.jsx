@@ -34,8 +34,11 @@ import {
   FaRobot,
   FaSpinner,
   FaDownload,
+  FaTag,
 } from 'react-icons/fa';
 import './AdminDashboard.css';
+import './ProductGrid.css';
+import './OrdersGrid.css';
 import './AdminProfile.css';
 import Toast from './Toast';
 import { jsPDF } from 'jspdf';
@@ -87,110 +90,159 @@ const AdminProductsManagement = ({ products, loading, onViewProduct }) => (
         <div className="loading-spinner"></div>
         <p>Loading products...</p>
       </div>
+    ) : products.length === 0 ? (
+      <div className="empty-state">
+        <div className="empty-state-icon">
+          <FaBoxOpen />
+        </div>
+        <h3>No Products Found</h3>
+        <p>There are no products in the system yet.</p>
+      </div>
     ) : (
-      <div className="table-container">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Seller</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th>Stock</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.length === 0 ? (
-              <tr>
-                <td colSpan="7" className="empty-row">No products found.</td>
-              </tr>
-            ) : (
-              products.map((product) => (
-                <tr key={product._id}>
-                  <td>{product.title || 'Untitled'}</td>
-                  <td>{product.seller?.businessName || `${product.seller?.firstName || ''} ${product.seller?.lastName || ''}`.trim() || 'Unknown'}</td>
-                  <td>{product.category || 'N/A'}</td>
-                  <td>Rs {product.price?.toFixed?.(2) ?? product.price ?? '0'}</td>
-                  <td>{product.stock ?? '0'}</td>
-                  <td>{product.status || 'active'}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="action-btn primary"
-                      onClick={() => onViewProduct && onViewProduct(product)}
-                    >
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="products-grid">
+        {products.map((product) => (
+          <div key={product._id} className="product-card">
+            <div className="product-card-image">
+              <img
+                src={product.images?.[0] || 'https://via.placeholder.com/200x150?text=No+Image'}
+                alt={product.title || 'Product'}
+              />
+              <div className={`stock-badge ${product.stock > 0 ? 'in-stock' : 'out-of-stock'}`}>
+                {product.stock > 0 ? `${product.stock} in stock` : 'Out of Stock'}
+              </div>
+              <div className={`status-badge ${product.status === 'active' ? 'active' : 'inactive'}`}>
+                {product.status === 'active' ? 'Active' : 'Inactive'}
+              </div>
+            </div>
+            <div className="product-card-body">
+              <h3 className="product-title">{product.title || 'Untitled Product'}</h3>
+              <p className="product-seller">
+                <FaStore style={{ marginRight: '6px' }} />
+                {product.seller?.businessName || `${product.seller?.firstName || ''} ${product.seller?.lastName || ''}`.trim() || 'Unknown'}
+              </p>
+              <p className="product-category">
+                <FaTag style={{ marginRight: '6px' }} />
+                {product.category || 'N/A'}
+              </p>
+              <div className="product-price-row">
+                <span className="product-price">Rs {product.price?.toFixed?.(2) ?? '0.00'}</span>
+              </div>
+              <button
+                type="button"
+                className="view-product-btn"
+                onClick={() => onViewProduct && onViewProduct(product)}
+              >
+                <FaEye style={{ marginRight: '6px' }} />
+                View Details
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     )}
   </div>
 );
 
-const AdminOrdersManagement = ({ orders, loading, onViewOrder }) => (
-  <div className="admin-management-dashboard">
-    <div className="section-header">
-      <h2>All Orders</h2>
-      <p className="section-subtitle">Review orders placed by buyers across all sellers.</p>
+const AdminOrdersManagement = ({ orders, loading, onViewOrder }) => {
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending':
+        return 'status-pending';
+      case 'processing':
+        return 'status-processing';
+      case 'shipped':
+        return 'status-shipped';
+      case 'delivered':
+        return 'status-delivered';
+      case 'cancelled':
+        return 'status-cancelled';
+      case 'done':
+        return 'status-done';
+      default:
+        return 'status-pending';
+    }
+  };
+
+  return (
+    <div className="admin-management-dashboard">
+      <div className="section-header">
+        <h2>All Orders</h2>
+        <p className="section-subtitle">Review orders placed by buyers across all sellers.</p>
+      </div>
+      {loading ? (
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Loading orders...</p>
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">
+            <FaShoppingCart />
+          </div>
+          <h3>No Orders Found</h3>
+          <p>There are no orders in the system yet.</p>
+        </div>
+      ) : (
+        <div className="orders-grid">
+          {orders.map((order) => (
+            <div key={order._id} className="order-card">
+              <div className="order-card-header">
+                <div className="order-id">
+                  <FaShoppingBag />
+                  <span>#{order._id.slice(-8).toUpperCase()}</span>
+                </div>
+                <div className={`order-status-badge ${getStatusColor(order.orderStatus)}`}>
+                  {order.orderStatus?.charAt(0).toUpperCase() + (order.orderStatus?.slice(1) || 'pending')}
+                </div>
+              </div>
+
+              <div className="order-card-body">
+                <div className="order-detail-row">
+                  <span className="detail-label">Buyer</span>
+                  <span className="detail-value">
+                    {order.buyer?.firstName ? `${order.buyer.firstName} ${order.buyer.lastName || ''}`.trim() : order.buyer?.email || 'Unknown'}
+                  </span>
+                </div>
+
+                <div className="order-detail-row">
+                  <span className="detail-label">Seller</span>
+                  <span className="detail-value">{order.seller?.businessName || 'Unknown'}</span>
+                </div>
+
+                <div className="order-detail-row">
+                  <span className="detail-label">Items</span>
+                  <span className="detail-value badge-items">{order.orderItems?.length ?? 0} items</span>
+                </div>
+
+                <div className="order-detail-row">
+                  <span className="detail-label">Date</span>
+                  <span className="detail-value">
+                    {new Date(order.createdAt || Date.now()).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="order-card-footer">
+                <div className="order-total">
+                  <span className="total-label">Total</span>
+                  <span className="total-amount">Rs {order.totalAmount?.toFixed?.(2) ?? '0.00'}</span>
+                </div>
+                <button
+                  type="button"
+                  className="view-order-btn"
+                  onClick={() => onViewOrder && onViewOrder(order)}
+                >
+                  <FaEye />
+                  View Details
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
-    {loading ? (
-      <div className="loading-container">
-        <div className="loading-spinner"></div>
-        <p>Loading orders...</p>
-      </div>
-    ) : (
-      <div className="table-container">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Order</th>
-              <th>Buyer</th>
-              <th>Seller</th>
-              <th>Items</th>
-              <th>Total</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.length === 0 ? (
-              <tr>
-                <td colSpan="7" className="empty-row">No orders found.</td>
-              </tr>
-            ) : (
-              orders.map((order) => (
-                <tr key={order._id}>
-                  <td>{order._id.slice(-8)}</td>
-                  <td>{order.buyer?.firstName ? `${order.buyer.firstName} ${order.buyer.lastName || ''}`.trim() : order.buyer?.email || 'Unknown'}</td>
-                  <td>{order.seller?.businessName || 'Unknown'}</td>
-                  <td>{order.orderItems?.length ?? 0}</td>
-                  <td>Rs {order.totalAmount?.toFixed?.(2) ?? '0.00'}</td>
-                  <td>{order.orderStatus || 'pending'}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="action-btn primary"
-                      onClick={() => onViewOrder && onViewOrder(order)}
-                    >
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    )}
-  </div>
-);
+  );
+};
 
 // -----------------------------
 // Dashboard page
@@ -2557,21 +2609,35 @@ const AdminDashboard = ({ admin, onLogout }) => {
     try {
       const token = localStorage.getItem('adminToken');
       if (!token) {
+        console.warn('No admin token found');
         setAdminOrders([]);
+        adminOrdersFetchingRef.current = false;
+        setAdminOrdersLoading(false);
         return;
       }
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      console.log('Fetching admin orders with token:', token.substring(0, 20) + '...');
+
       const response = await fetch('http://localhost:5000/api/admin/orders', {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        method: 'GET',
+        headers: { 
+          Authorization: `Bearer ${token}`, 
+          'Content-Type': 'application/json' 
+        },
         credentials: 'include',
-        signal: controller.signal,
       });
-      clearTimeout(timeoutId);
+
+      console.log('Response status:', response.status);
+
+      const data = await response.json();
+      console.log('Response data:', data);
+
       if (response.ok) {
-        const data = await response.json();
-        setAdminOrders(data.data || []);
+        const ordersList = data.data || [];
+        console.log('Orders list:', ordersList);
+        setAdminOrders(ordersList);
       } else {
+        console.error('Error response:', data);
         setAdminOrders([]);
       }
     } catch (error) {
@@ -2674,6 +2740,10 @@ const AdminDashboard = ({ admin, onLogout }) => {
 
   const handleCloseAdminOrderModal = useCallback(() => {
     setSelectedAdminOrder(null);
+  }, []);
+
+  const handleViewAdminOrder = useCallback((order) => {
+    setSelectedAdminOrder(order);
   }, []);
 
   const validateBuyerForm = () => {
@@ -2797,7 +2867,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
       case 'products':
         return <AdminProductsManagement products={adminProducts} loading={adminProductsLoading} onViewProduct={setSelectedAdminProduct} />;
       case 'orders':
-        return <AdminOrdersManagement orders={adminOrders} loading={adminOrdersLoading} onViewOrder={setSelectedAdminOrder} />;
+        return <AdminOrdersManagement orders={adminOrders} loading={adminOrdersLoading} onViewOrder={handleViewAdminOrder} />;
       case 'profile':
         return (
           <AdminProfileContent

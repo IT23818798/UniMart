@@ -377,44 +377,58 @@ const getAllProducts = async (req, res) => {
 
 // @desc    Get all orders
 // @route   GET /api/admin/orders
-// @access  Private (requires manage_orders permission)
+// @access  Private
 const getAllOrders = async (req, res) => {
   try {
     const Order = require('../models/Order');
 
-    const orders = await Order.aggregate([
-      {
-        $lookup: {
-          from: 'sellers',
-          localField: 'seller',
-          foreignField: '_id',
-          as: 'seller'
-        }
-      },
-      {
-        $unwind: {
-          path: '$seller',
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $lookup: {
-          from: 'buyers',
-          localField: 'buyer',
-          foreignField: '_id',
-          as: 'buyer'
-        }
-      },
-      {
-        $unwind: {
-          path: '$buyer',
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $sort: { createdAt: -1 }
-      }
-    ]).allowDiskUse(true);
+    console.log('=== Fetching all orders ===');
+
+    // Count total orders first
+    const totalCount = await Order.countDocuments({});
+    console.log(`Total orders in DB: ${totalCount}`);
+
+    if (totalCount === 0) {
+      console.log('No orders in database');
+      return res.status(200).json({
+        success: true,
+        data: [],
+        count: 0,
+        message: 'No orders found'
+      });
+    }
+
+    // Fetch all orders without populate first to see raw data
+    const rawOrders = await Order.find({}).exec();
+    console.log(`Raw orders fetched: ${rawOrders.length}`);
+
+    // Now fetch with populate
+    let orders = await Order.find({})
+      .populate({
+        path: 'seller',
+        select: 'businessName firstName lastName',
+        strictPopulate: false
+      })
+      .populate({
+        path: 'buyer',
+        select: 'firstName lastName email',
+        strictPopulate: false
+      })
+      .lean();
+
+    console.log(`Orders after populate: ${orders.length}`);
+    console.log('Sample order:', orders.length > 0 ? JSON.stringify(orders[0], null, 2) : 'No orders');
+
+    // Sort by createdAt descending
+    if (orders && orders.length > 0) {
+      orders.sort((a, b) => {
+        const dateA = new Date(b.createdAt || 0);
+        const dateB = new Date(a.createdAt || 0);
+        return dateA - dateB;
+      });
+    }
+
+    console.log(`Returning ${orders.length} orders`);
 
     res.status(200).json({
       success: true,
@@ -422,10 +436,13 @@ const getAllOrders = async (req, res) => {
       count: orders.length
     });
   } catch (error) {
-    console.error('Get all orders error:', error);
+    console.error('=== Get all orders error ===');
+    console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error fetching orders',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };

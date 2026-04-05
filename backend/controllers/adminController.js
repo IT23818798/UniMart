@@ -350,6 +350,86 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+// @desc    Get all products
+// @route   GET /api/admin/products
+// @access  Private (requires manage_products permission)
+const getAllProducts = async (req, res) => {
+  try {
+    const Product = require('../models/Product');
+    const products = await Product.find({})
+      .populate('seller', 'businessName firstName lastName')
+      .sort('-createdAt')
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: products,
+      count: products.length
+    });
+  } catch (error) {
+    console.error('Get all products error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
+// @desc    Get all orders
+// @route   GET /api/admin/orders
+// @access  Private (requires manage_orders permission)
+const getAllOrders = async (req, res) => {
+  try {
+    const Order = require('../models/Order');
+
+    const orders = await Order.aggregate([
+      {
+        $lookup: {
+          from: 'sellers',
+          localField: 'seller',
+          foreignField: '_id',
+          as: 'seller'
+        }
+      },
+      {
+        $unwind: {
+          path: '$seller',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: 'buyers',
+          localField: 'buyer',
+          foreignField: '_id',
+          as: 'buyer'
+        }
+      },
+      {
+        $unwind: {
+          path: '$buyer',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $sort: { createdAt: -1 }
+      }
+    ]).allowDiskUse(true);
+
+    res.status(200).json({
+      success: true,
+      data: orders,
+      count: orders.length
+    });
+  } catch (error) {
+    console.error('Get all orders error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
 // @desc    Get all admins (super admin only)
 // @route   GET /api/admin/all
 // @access  Private (Super Admin)
@@ -410,5 +490,7 @@ module.exports = {
   changeAdminPassword,
   logoutAdmin,
   getDashboardStats,
+  getAllProducts,
+  getAllOrders,
   getAllAdmins
 };

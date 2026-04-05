@@ -373,10 +373,6 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
                 <FaBell className="h-6 w-6" />
                 <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
               </button>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                <FaSearch className="inline mr-2 h-4 w-4" />
-                Browse Products
-              </button>
             </div>
           </div>
         </header>
@@ -571,7 +567,17 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
             />
           )}
 
-          {activeTab === 'reviews' && <BuyerReviews />}
+          {activeTab === 'reviews' && (
+            <BuyerReviews
+              onViewProduct={(productId) => {
+                setViewingProduct({ _id: productId });
+                setActiveTab('product_detail');
+              }}
+              onBrowseProducts={() => {
+                setActiveTab('products');
+              }}
+            />
+          )}
 
           {activeTab === 'order_detail' && viewingOrder && (
             <OrderDetail

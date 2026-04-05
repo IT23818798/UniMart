@@ -8,7 +8,13 @@ import {
   FaExternalLinkAlt,
   FaEllipsisH,
   FaPlusCircle,
-  FaPlus
+  FaPlus,
+  FaCamera,
+  FaReply,
+  FaTrash,
+  FaTimes,
+  FaImage,
+  FaCheck
 } from 'react-icons/fa';
 import './ChatPage.css';
 
@@ -20,11 +26,20 @@ const ChatPage = ({ currentUser, userType }) => {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [msgSearchTerm, setMsgSearchTerm] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [stagedImageUrl, setStagedImageUrl] = useState(null);
+  const [uploadedUrl, setUploadedUrl] = useState(null);
+  
   const messagesEndRef = useRef(null);
   const pollingRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const token = localStorage.getItem(userType === 'buyer' ? 'buyerToken' : 'sellerToken');
   const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     fetchConversations();
@@ -35,13 +50,13 @@ const ChatPage = ({ currentUser, userType }) => {
   useEffect(() => {
     if (pollingRef.current) clearInterval(pollingRef.current);
     if (activeChat) {
-      fetchMessages(activeChat.otherUser.id, activeChat.otherUser.type, true);
+      fetchMessages(activeChat.otherUser.id, activeChat.otherUser.type, true, activeChat.productId);
       pollingRef.current = setInterval(() => {
-        fetchMessages(activeChat.otherUser.id, activeChat.otherUser.type, false);
+        fetchMessages(activeChat.otherUser.id, activeChat.otherUser.type, false, activeChat.productId);
       }, 3000);
     }
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [activeChat?.otherUser?.id]);
+  }, [activeChat?.otherUser?.id, activeChat?.productId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,16 +64,20 @@ const ChatPage = ({ currentUser, userType }) => {
 
   const fetchConversations = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/messages/conversations', { headers, credentials: 'include' });
+      const res = await fetch(`${API_URL}/api/messages/conversations`, { headers, credentials: 'include' });
       const data = await res.json();
       if (data.success) setConversations(data.data);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
-  const fetchMessages = async (otherId, otherType, showLoader = false) => {
+  const fetchMessages = async (otherId, otherType, showLoader = false, productId = null) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/messages/${otherId}?otherType=${otherType}`, { headers, credentials: 'include' });
+      const pId = (productId?._id || productId)?.toString();
+      let url = `${API_URL}/api/messages/${otherId}?otherType=${otherType}`;
+      if (pId && pId !== '[object Object]') url += `&productId=${pId}`;
+      
+      const res = await fetch(url, { headers, credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         setMessages(data.data);
@@ -67,28 +86,121 @@ const ChatPage = ({ currentUser, userType }) => {
     } catch (e) { console.error(e); }
   };
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !activeChat) return;
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Size validation: Up to 2MB
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Please upload an image smaller than 2MB');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
     try {
-      const res = await fetch('http://localhost:5000/api/messages', {
+      setIsUploading(true);
+      setUploadedUrl(null);
+
+      // 1. Instant local preview
+      const localUrl = URL.createObjectURL(file);
+      setStagedImageUrl(localUrl);
+
+      // 2. Persistent upload
+      const res = await fetch(`${API_URL}/api/messages/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUploadedUrl(data.url);
+      } else {
+        alert(data.message || 'Upload failed');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Upload error');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const sendSystemMessage = async (content, imageUrl = null) => {
+    if (!activeChat) return;
+    try {
+      const res = await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
         headers,
         credentials: 'include',
         body: JSON.stringify({
           recipientId: activeChat.otherUser.id,
           recipientType: activeChat.otherUser.type,
-          content: newMessage,
-          productId: activeChat.lastMessage?.product?._id
+          content: content || '',
+          imageUrl: imageUrl || uploadedUrl,
+          repliedTo: replyingTo?._id,
+          productId: activeChat.productId || activeChat.lastMessage?.product?._id
         })
       });
       const data = await res.json();
       if (data.success) {
         setNewMessage('');
-        fetchMessages(activeChat.otherUser.id, activeChat.otherUser.type, false);
+        setReplyingTo(null);
+        setStagedImageUrl(null);
+        setUploadedUrl(null);
+        fetchMessages(activeChat.otherUser.id, activeChat.otherUser.type, false, activeChat.productId);
         fetchConversations();
       }
     } catch (e) { console.error(e); }
+  };
+
+  const sendMessage = (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() && !replyingTo && !stagedImageUrl) return;
+    sendSystemMessage(newMessage);
+  };
+
+  const deleteMessage = async (msgId) => {
+    if (!window.confirm('Delete this message for everyone?')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/messages/${msgId}`, {
+        method: 'DELETE',
+        headers,
+        credentials: 'include'
+      });
+      if (res.ok) {
+        // Find if I was the sender
+        setMessages(prev => prev.map(m => {
+          if (m._id === msgId) {
+            return { ...m, isUnsent: true, content: '', imageUrl: null };
+          }
+          return m;
+        }));
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const deleteConversation = async () => {
+    if (!activeChat || !window.confirm('Delete entire conversation for you?')) return;
+    try {
+      const pId = (activeChat.productId?._id || activeChat.productId || activeChat.lastMessage?.product?._id || activeChat.lastMessage?.productId);
+      const res = await fetch(`http://localhost:5000/api/messages/conversation/${activeChat.otherUser.id}?otherType=${activeChat.otherUser.type}&productId=${pId}`, {
+        method: 'DELETE',
+        headers,
+        credentials: 'include'
+      });
+      if (res.ok) {
+        setActiveChat(null);
+        fetchConversations();
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleChatClick = (conv) => {
+    setMessages([]);
+    setLoading(true);
+    setActiveChat(conv);
   };
 
   const isMine = (msg) => {
@@ -98,8 +210,13 @@ const ChatPage = ({ currentUser, userType }) => {
     return msg.senderType?.toLowerCase() === userType?.toLowerCase();
   };
 
-  const filtered = conversations.filter(c =>
+  const filteredConversations = conversations.filter(c =>
     c.otherUser.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredMessages = messages.filter(m => 
+    m.content?.toLowerCase().includes(msgSearchTerm.toLowerCase()) ||
+    (m.imageUrl && msgSearchTerm === '') // Show all if search is empty
   );
 
   return (
@@ -127,14 +244,18 @@ const ChatPage = ({ currentUser, userType }) => {
 
         <div className="messenger-list scrollbar-messenger">
           {loading && <p className="list-status">Loading chats...</p>}
-          {!loading && filtered.length === 0 && <p className="list-status">No messages yet.</p>}
-          {filtered.map((conv, i) => {
+          {!loading && filteredConversations.length === 0 && <p className="list-status">No messages yet.</p>}
+          {filteredConversations.map((conv, i) => {
             const lastWasMe = (conv.lastMessage.sender?._id || conv.lastMessage.sender)?.toString() === (currentUserId || currentUser?._id)?.toString();
+            const convProdId = (conv.productId?._id || conv.productId)?.toString();
+            const activeProdId = (activeChat?.productId?._id || activeChat?.productId)?.toString();
+            const isActive = activeChat?.otherUser.id === conv.otherUser.id && activeProdId === convProdId;
+
             return (
               <div
                 key={i}
-                className={`conv-card ${activeChat?.otherUser.id === conv.otherUser.id ? 'active' : ''}`}
-                onClick={() => setActiveChat(conv)}
+                className={`conv-card ${isActive ? 'active' : ''}`}
+                onClick={() => handleChatClick(conv)}
               >
                 <div className="card-avatar">
                   {conv.otherUser.profileImage ? (
@@ -145,10 +266,16 @@ const ChatPage = ({ currentUser, userType }) => {
                   <div className="online-indicator" />
                 </div>
                 <div className="card-info">
-                  <span className="card-name">{conv.otherUser.name}</span>
+                  <div className="card-top-row">
+                    <span className="card-name">{conv.otherUser.name}</span>
+                    {conv.lastMessage.product && (
+                      <span className="card-product-tag">{conv.lastMessage.product.title.substring(0, 15)}...</span>
+                    )}
+                  </div>
                   <div className="card-preview-row">
                     <p className="card-preview">
-                      {lastWasMe ? 'You: ' : ''}{conv.lastMessage.content}
+                      {lastWasMe ? 'You: ' : ''}
+                      {conv.lastMessage.imageUrl ? '📷 Photo' : conv.lastMessage.content}
                     </p>
                     <span className="card-dot">·</span>
                     <span className="card-time">
@@ -185,26 +312,50 @@ const ChatPage = ({ currentUser, userType }) => {
                   <span className="header-status">Active now</span>
                 </div>
               </div>
+              <div className="header-actions">
+                <button className="action-btn" onClick={() => setShowSearch(!showSearch)}>
+                  <FaSearch />
+                </button>
+                <button className="action-btn danger" onClick={deleteConversation}>
+                  <FaTrash />
+                </button>
+              </div>
             </div>
 
-            {activeChat.lastMessage?.product && (
-              <div className="product-context-bar">
+            {showSearch && (
+              <div className="chat-search-bar">
+                <FaSearch className="search-icon" />
+                <input 
+                  type="text" 
+                  placeholder="Search in conversation..." 
+                  value={msgSearchTerm}
+                  onChange={(e) => setMsgSearchTerm(e.target.value)}
+                  autoFocus
+                />
+                <button className="close-search" onClick={() => { setMsgSearchTerm(''); setShowSearch(false); }}>
+                  <FaTimes />
+                </button>
+              </div>
+            )}
+
+            {activeChat.productId && (
+              <div className="product-context-bar glass">
                 <img
-                  src={activeChat.lastMessage.product.images?.[0] || activeChat.lastMessage.product.image}
+                  src={activeChat.lastMessage.product?.images?.[0] || activeChat.lastMessage.product?.image}
                   alt="p"
                 />
                 <div className="product-info">
-                  <span className="p-title">{activeChat.lastMessage.product.title}</span>
-                  <span className="p-price">Rs. {activeChat.lastMessage.product.price}</span>
+                  <span className="p-title">{activeChat.lastMessage.product?.title}</span>
+                  <span className="p-price">Rs. {activeChat.lastMessage.product?.price}</span>
                 </div>
-                <a href={`/product/${activeChat.lastMessage.product._id}`} target="_blank" rel="noreferrer" className="p-link">
+                <a href={`/product/${activeChat.productId}`} target="_blank" rel="noreferrer" className="p-link">
                   <FaExternalLinkAlt /> View
                 </a>
               </div>
             )}
 
             <div className="messenger-messages scrollbar-messenger">
-              {messages.map((msg, i) => {
+              {filteredMessages.map((msg, i) => {
                 const mine = isMine(msg);
                 return (
                   <div key={i} className={`msg-row ${mine ? 'mine' : 'theirs'}`}>
@@ -213,9 +364,43 @@ const ChatPage = ({ currentUser, userType }) => {
                         {activeChat.otherUser.name?.[0]?.toUpperCase()}
                       </div>
                     )}
-                    <div className="msg-bubble-wrap">
-                      <div className={`msg-bubble ${mine ? 'bubble-mine' : 'bubble-theirs'}`}>
-                        {msg.content}
+                    <div className="msg-bubble-wrap group">
+                      {msg.repliedTo && (
+                        <div className="reply-preview-bubble">
+                          <div className="reply-content-row">
+                            {msg.repliedTo.imageUrl && (
+                              <img src={msg.repliedTo.imageUrl} alt="rt" className="reply-thumbnail" />
+                            )}
+                            <div className="reply-text-col">
+                              <span className="reply-user">
+                                {isMine(msg.repliedTo) ? 'You' : activeChat.otherUser.name}
+                              </span>
+                              <p className="reply-text truncate">
+                                {msg.repliedTo.content || 'Photo'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div className={`msg-bubble ${mine ? 'bubble-mine' : 'bubble-theirs'} ${msg.isUnsent ? 'unsent' : ''}`}>
+                        {msg.isUnsent ? (
+                          <span className="unsent-text italic">
+                            {mine ? 'You unsent a message' : 'This message was deleted'}
+                          </span>
+                        ) : (
+                          <>
+                            {msg.imageUrl && (
+                              <div className="msg-image-container">
+                                <img src={msg.imageUrl} alt="uploaded" className="msg-image" onClick={() => window.open(msg.imageUrl, '_blank')} />
+                              </div>
+                            )}
+                            {msg.content}
+                            <div className="msg-actions-overlay">
+                              <button onClick={() => setReplyingTo(msg)} title="Reply"><FaReply /></button>
+                              <button onClick={() => deleteMessage(msg._id)} title="Unsend"><FaTrash /></button>
+                            </div>
+                          </>
+                        )}
                       </div>
                       <span className="msg-time-status">
                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -228,9 +413,47 @@ const ChatPage = ({ currentUser, userType }) => {
               <div ref={messagesEndRef} />
             </div>
 
-            <form className="messenger-input-row" onSubmit={sendMessage}>
+            {replyingTo && (
+              <div className="replying-context-bar">
+                <div className="reply-info">
+                  <FaReply className="reply-icon" />
+                  <div className="reply-details">
+                    <span className="reply-to">Replying to {isMine(replyingTo) ? 'yourself' : activeChat.otherUser.name}</span>
+                    <p className="reply-content truncate">{replyingTo.content || 'Image'}</p>
+                  </div>
+                </div>
+                <button className="cancel-reply" onClick={() => setReplyingTo(null)}><FaTimes /></button>
+              </div>
+            )}
+
+            {stagedImageUrl && (
+              <div className="staged-image-preview">
+                <div className="staged-container">
+                  <img src={stagedImageUrl} alt="staging" />
+                  {isUploading ? (
+                    <div className="staged-overlay loading"><div className="spinner-tiny" /></div>
+                  ) : uploadedUrl && (
+                    <div className="staged-overlay success"><FaCheck /></div>
+                  )}
+                  <button className="remove-staged" onClick={() => { setStagedImageUrl(null); setUploadedUrl(null); }}>
+                    <FaTimes />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <form className="messenger-input-row glass" onSubmit={sendMessage}>
               <div className="input-btns">
-                <FaPlusCircle />
+                <button type="button" className="input-btn" onClick={() => fileInputRef.current.click()} disabled={isUploading}>
+                  <FaCamera />
+                </button>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  style={{ display: 'none' }} 
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                />
               </div>
               <div className="input-field-wrap">
                 <input
@@ -240,7 +463,7 @@ const ChatPage = ({ currentUser, userType }) => {
                   onChange={e => setNewMessage(e.target.value)}
                 />
               </div>
-              <button type="submit" className="send-btn" disabled={!newMessage.trim()}>
+              <button type="submit" className="send-btn" disabled={(!newMessage.trim() && !stagedImageUrl) || isUploading}>
                 <FaPaperPlane />
               </button>
             </form>

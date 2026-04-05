@@ -23,14 +23,37 @@ const messageSchema = new mongoose.Schema({
   },
   content: {
     type: String,
-    required: [true, 'Message content cannot be empty'],
-    trim: true
+    trim: true,
+    required: function() {
+      return !this.imageUrl;
+    }
+  },
+  imageUrl: {
+    type: String,
+    default: null
+  },
+  repliedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Message',
+    default: null
   },
   productId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product'
   },
   isRead: {
+    type: Boolean,
+    default: false
+  },
+  senderDeleted: {
+    type: Boolean,
+    default: false
+  },
+  recipientDeleted: {
+    type: Boolean,
+    default: false
+  },
+  isUnsent: {
     type: Boolean,
     default: false
   }

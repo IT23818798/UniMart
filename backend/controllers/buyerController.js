@@ -1,4 +1,5 @@
 const Buyer = require('../models/Buyer');
+const PointTransaction = require('../models/PointTransaction');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
@@ -327,6 +328,42 @@ const getDashboardStats = async (req, res) => {
       });
     }
 
+    // --- SMART SYNC LOGIC (Backfill legacy data if persistent fields are 0) ---
+    let totalEarned = buyer.purchaseStats?.totalPointsEarned || 0;
+    let totalUsed = buyer.purchaseStats?.totalPointsUsed || 0;
+
+    if (totalEarned === 0 && totalUsed === 0) {
+      const mongoose = require('mongoose');
+      const pointStats = await PointTransaction.aggregate([
+        { $match: { buyer: new mongoose.Types.ObjectId(req.buyer.id) } },
+        {
+          $group: {
+            _id: null,
+            sumEarned: {
+              $sum: { $cond: [{ $gt: ['$amount', 0] }, '$amount', 0] }
+            },
+            sumUsed: {
+              $sum: { $cond: [{ $lt: ['$amount', 0] }, { $abs: '$amount' }, 0] }
+            }
+          }
+        }
+      ]);
+
+      if (pointStats.length > 0) {
+        totalEarned = pointStats[0].sumEarned || 0;
+        totalUsed = pointStats[0].sumUsed || 0;
+
+        // Perform one-time update to persist these values
+        await Buyer.findByIdAndUpdate(buyer._id, {
+          $set: {
+            'purchaseStats.totalPointsEarned': totalEarned,
+            'purchaseStats.totalPointsUsed': totalUsed
+          }
+        });
+        console.log(`[Sync] Backfilled ${totalEarned} earned and ${totalUsed} used points for ${buyer.email}`);
+      }
+    }
+
     // Safe dashboard statistics with defaults for users missing purchaseStats
     const dashboardStats = {
       buyerInfo: {
@@ -342,6 +379,8 @@ const getDashboardStats = async (req, res) => {
         totalOrders: buyer.purchaseStats?.totalOrders || 0,
         totalSpent: buyer.purchaseStats?.totalSpent || 0,
         averageOrderValue: buyer.purchaseStats?.averageOrderValue || 0,
+        totalPointsEarned: totalEarned,
+        totalPointsUsed: totalUsed,
         lastOrderDate: buyer.purchaseStats?.lastOrderDate,
         favoriteCategories: buyer.purchaseStats?.favoriteCategories || [],
         monthlySpending: 0 // Calculate from actual orders
@@ -588,14 +627,49 @@ const getPointsHistory = async (req, res) => {
 // Add test points (Bonus/Reward)
 const addTestPoints = async (req, res) => {
   try {
-    const { amount = 1000, reason = 'Daily Reward' } = req.body;
+    const { amount = 1, reason = 'Daily Reward' } = req.body;
     const buyer = await Buyer.findById(req.buyer.id);
     const PointTransaction = require('../models/PointTransaction');
 
     if (!buyer) return res.status(404).json({ success: false, message: 'Buyer not found' });
 
-    // Update balance
+    // Enforce Midnight-based frequency limit (Asia/Colombo UTC+5:30)
+    if (reason === 'Daily Reward') {
+      // Calculate start of current day in UTC+5:30
+      const now = new Date();
+      const offset = 5.5 * 60 * 60 * 1000; // 5.5 hours in ms
+      const localTime = new Date(now.getTime() + offset);
+      
+      const startOfDayLocal = new Date(localTime);
+      startOfDayLocal.setUTCHours(0, 0, 0, 0);
+      
+      // Convert back to UTC for DB query
+      const startOfDayUTC = new Date(startOfDayLocal.getTime() - offset);
+
+      const todayReward = await PointTransaction.findOne({ 
+        buyer: buyer._id, 
+        type: 'bonus',
+        description: 'Daily Reward',
+        createdAt: { $gte: startOfDayUTC }
+      }).sort({ createdAt: -1 });
+
+      if (todayReward) {
+        // Calculate next midnight in UTC+5:30
+        const tomorrowLocal = new Date(startOfDayLocal);
+        tomorrowLocal.setUTCDate(tomorrowLocal.getUTCDate() + 1);
+        const nextMidnightUTC = new Date(tomorrowLocal.getTime() - offset);
+
+        return res.status(400).json({ 
+          success: false, 
+          message: 'You have already claimed today’s reward. Next one unlocks at Midnight.',
+          nextClaimDate: nextMidnightUTC
+        });
+      }
+    }
+
+    // Update balance and counters
     buyer.purchaseStats.loyaltyPoints = (buyer.purchaseStats.loyaltyPoints || 0) + amount;
+    buyer.purchaseStats.totalPointsEarned = (buyer.purchaseStats.totalPointsEarned || 0) + amount;
     await buyer.save();
 
     // Create ledger entry
@@ -608,7 +682,7 @@ const addTestPoints = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Successfully added ${amount} Star Points!`,
+      message: `Successfully added ${amount} Star Point!`,
       data: {
         newBalance: buyer.purchaseStats.loyaltyPoints
       }

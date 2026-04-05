@@ -5,7 +5,10 @@ import {
     FaMinus,
     FaExternalLinkAlt,
     FaCircle,
-    FaCheck
+    FaCheck,
+    FaCamera,
+    FaTrash,
+    FaReply
 } from 'react-icons/fa';
 import './ChatPopup.css';
 
@@ -17,13 +20,21 @@ const ChatPopup = ({ currentUser, userType, otherUserId, otherUserType, onClose,
     const [otherUserInfo, setOtherUserInfo] = useState(null);
     const [activeProduct, setActiveProduct] = useState(null);
     const [currentUserId, setCurrentUserId] = useState(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [stagedImageUrl, setStagedImageUrl] = useState(null);
+    const [uploadedUrl, setUploadedUrl] = useState(null);
+    const [replyingTo, setReplyingTo] = useState(null);
     const messagesEndRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     const token = localStorage.getItem(userType === 'buyer' ? 'buyerToken' : 'sellerToken');
     const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
     useEffect(() => {
         if (otherUserId && otherUserType) {
+            setLoading(true);
+            setMessages([]);
             if (initialProductId) fetchProduct(initialProductId);
             fetchMessages();
             const interval = setInterval(fetchMessages, 3000);
@@ -37,7 +48,7 @@ const ChatPopup = ({ currentUser, userType, otherUserId, otherUserType, onClose,
 
     const fetchProduct = async (prodId) => {
         try {
-            const res = await fetch(`http://localhost:5000/api/products/${prodId}`);
+            const res = await fetch(`${API_URL}/api/products/${prodId}`);
             const data = await res.json();
             if (data.success) setActiveProduct(data.data);
         } catch (e) { console.error(e); }
@@ -45,7 +56,11 @@ const ChatPopup = ({ currentUser, userType, otherUserId, otherUserType, onClose,
 
     const fetchMessages = async () => {
         try {
-            const res = await fetch(`http://localhost:5000/api/messages/${otherUserId}?otherType=${otherUserType}`, {
+            const pId = (initialProductId?._id || initialProductId)?.toString();
+            let url = `${API_URL}/api/messages/${otherUserId}?otherType=${otherUserType}`;
+            if (pId && pId !== '[object Object]') url += `&productId=${pId}`;
+            
+            const res = await fetch(url, {
                 headers, credentials: 'include'
             });
             const data = await res.json();
@@ -58,25 +73,91 @@ const ChatPopup = ({ currentUser, userType, otherUserId, otherUserType, onClose,
         finally { setLoading(false); }
     };
 
-    const sendMessage = async (e) => {
-        e.preventDefault();
-        if (!newMessage.trim()) return;
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.size > 2 * 1024 * 1024) {
+            alert('Please upload an image smaller than 2MB');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('image', file);
+
         try {
-            const res = await fetch('http://localhost:5000/api/messages', {
+            setIsUploading(true);
+            setUploadedUrl(null);
+
+            // 1. Instant local preview
+            const localUrl = URL.createObjectURL(file);
+            setStagedImageUrl(localUrl);
+
+            // 2. Persistent upload to server
+            const res = await fetch(`${API_URL}/api/messages/upload`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                // Store server URL separately for sending
+                setUploadedUrl(data.url);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const sendSystemMessage = async (content, imageUrl = null) => {
+        try {
+            const res = await fetch(`${API_URL}/api/messages`, {
                 method: 'POST',
                 headers,
                 credentials: 'include',
                 body: JSON.stringify({
                     recipientId: otherUserId,
                     recipientType: otherUserType,
-                    content: newMessage,
-                    productId: activeProduct?._id || activeProduct
+                    content: content || '',
+                    imageUrl: imageUrl || uploadedUrl,
+                    repliedTo: replyingTo?._id,
+                    productId: initialProductId || activeproduct?._id || activeproduct
                 })
             });
             const data = await res.json();
             if (data.success) {
                 setNewMessage('');
+                setStagedImageUrl(null);
+                setUploadedUrl(null);
+                setReplyingTo(null);
                 fetchMessages();
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const sendMessage = async (e) => {
+        e.preventDefault();
+        if (!newMessage.trim() && !stagedImageUrl && !replyingTo) return;
+        sendSystemMessage(newMessage);
+    };
+
+    const deleteMessage = async (msgId) => {
+        if (!window.confirm('Delete this message for everyone?')) return;
+        try {
+            const res = await fetch(`${API_URL}/api/messages/${msgId}`, {
+                method: 'DELETE',
+                headers,
+                credentials: 'include'
+            });
+            if (res.ok) {
+                setMessages(prev => prev.map(m => {
+                    if (m._id === msgId) {
+                        return { ...m, isUnsent: true, content: '', imageUrl: null };
+                    }
+                    return m;
+                }));
             }
         } catch (e) { console.error(e); }
     };
@@ -143,9 +224,37 @@ const ChatPopup = ({ currentUser, userType, otherUserId, otherUserType, onClose,
                                     {otherUserInfo?.name?.[0]?.toUpperCase()}
                                 </div>
                             )}
-                            <div className="bubble-wrap">
-                                <div className={`bubble ${mine ? 'bubble-mine' : 'bubble-theirs'}`}>
-                                    {msg.content}
+                            <div className="bubble-wrap group">
+                                {msg.repliedTo && (
+                                    <div className="reply-preview-bubble">
+                                        <div className="reply-content-row">
+                                            {msg.repliedTo.imageUrl && (
+                                                <img src={msg.repliedTo.imageUrl} alt="rt" className="reply-thumbnail" />
+                                            )}
+                                            <div className="reply-text-col">
+                                                <span className="reply-user">{isMine(msg.repliedTo) ? 'You' : otherUserInfo?.name}</span>
+                                                <p className="reply-text truncate">{msg.repliedTo.content || 'Photo'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className={`bubble ${mine ? 'bubble-mine' : 'bubble-theirs'} ${msg.isUnsent ? 'unsent' : ''}`}>
+                                    {msg.isUnsent ? (
+                                        <span className="unsent-text italic">
+                                            {mine ? 'You unsent a message' : 'This message was deleted'}
+                                        </span>
+                                    ) : (
+                                        <>
+                                            {msg.imageUrl && (
+                                                <img src={msg.imageUrl} alt="upload" className="popup-msg-image" onClick={() => window.open(msg.imageUrl, '_blank')} />
+                                            )}
+                                            {msg.content}
+                                            <div className="popup-msg-actions">
+                                                <button onClick={() => setReplyingTo(msg)} title="Reply"><FaReply /></button>
+                                                <button onClick={() => deleteMessage(msg._id)} title="Unsend"><FaTrash /></button>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                                 <span className="msg-time">
                                     {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -157,8 +266,43 @@ const ChatPopup = ({ currentUser, userType, otherUserId, otherUserType, onClose,
                 <div ref={messagesEndRef} />
             </div>
 
-            <form className="popup-footer" onSubmit={sendMessage}>
-                <div className="footer-icons"><FaCircle style={{ color: '#0084ff', fontSize: 18 }} /></div>
+            {replyingTo && (
+                <div className="popup-reply-bar">
+                    <div className="reply-indicator">
+                        <span>Replying to <strong>{isMine(replyingTo) ? 'yourself' : otherUserInfo?.name}</strong></span>
+                        <p className="truncate">{replyingTo.content || 'Photo'}</p>
+                    </div>
+                    <button className="close-reply" onClick={() => setReplyingTo(null)}><FaTimes /></button>
+                </div>
+            )}
+
+            {stagedImageUrl && (
+                <div className="popup-staged-preview">
+                    <div className="staged-img-wrap">
+                        <img src={stagedImageUrl} alt="staged" />
+                        {isUploading ? (
+                            <div className="staged-overlay loading"><div className="spinner-tiny" /></div>
+                        ) : uploadedUrl && (
+                            <div className="staged-overlay success"><FaCheck /></div>
+                        )}
+                    </div>
+                    <button className="remove-staged" onClick={() => { setStagedImageUrl(null); setUploadedUrl(null); }}><FaTimes /></button>
+                </div>
+            )}
+
+            <form className="popup-footer glass" onSubmit={sendMessage}>
+                <div className="footer-icons">
+                    <button type="button" className="popup-input-btn" onClick={() => fileInputRef.current.click()} disabled={isUploading}>
+                        <FaCamera />
+                    </button>
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        style={{ display: 'none' }} 
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                    />
+                </div>
                 <div className="footer-input-wrap">
                     <input
                         type="text"
@@ -167,7 +311,7 @@ const ChatPopup = ({ currentUser, userType, otherUserId, otherUserType, onClose,
                         onChange={e => setNewMessage(e.target.value)}
                     />
                 </div>
-                <button type="submit" className="send-btn" disabled={!newMessage.trim()}>
+                <button type="submit" className="send-btn" disabled={(!newMessage.trim() && !stagedImageUrl) || isUploading}>
                     <FaPaperPlane />
                 </button>
             </form>

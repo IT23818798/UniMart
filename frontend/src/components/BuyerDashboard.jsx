@@ -60,6 +60,34 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   const [livePoints, setLivePoints] = useState(0);
   const [pointsHistory, setPointsHistory] = useState([]);
   const [isClaiming, setIsClaiming] = useState(false);
+  const [nextClaimDate, setNextClaimDate] = useState(null);
+  const [timeToNextClaim, setTimeToNextClaim] = useState('');
+
+  const ASIA_OFFSET = 5.5 * 60 * 60 * 1000;
+
+  // Initialize reward state from history
+  useEffect(() => {
+    if (pointsHistory.length > 0) {
+      const dailyRewards = pointsHistory.filter(t => t.description === 'Daily Reward' && t.type === 'bonus');
+      if (dailyRewards.length > 0) {
+        const lastReward = new Date(dailyRewards[0].createdAt);
+        
+        // Calculate start of current day in Asia (UTC+5:30)
+        const now = new Date();
+        const localNow = new Date(now.getTime() + ASIA_OFFSET);
+        const startOfDayLocal = new Date(localNow);
+        startOfDayLocal.setUTCHours(0, 0, 0, 0);
+        const startOfDayUTC = new Date(startOfDayLocal.getTime() - ASIA_OFFSET);
+
+        if (lastReward >= startOfDayUTC) {
+          // Already claimed today, set next midnight
+          const nextMidnightLocal = new Date(startOfDayLocal);
+          nextMidnightLocal.setUTCDate(nextMidnightLocal.getUTCDate() + 1);
+          setNextClaimDate(new Date(nextMidnightLocal.getTime() - ASIA_OFFSET));
+        }
+      }
+    }
+  }, [pointsHistory]);
 
   // Notification counts
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -206,12 +234,17 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
           'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
         },
         credentials: 'include',
-        body: JSON.stringify({ amount: 1000, reason: 'Daily Reward' })
+        body: JSON.stringify({ amount: 1, reason: 'Daily Reward' })
       });
       const data = await response.json();
       if (data.success) {
-        alert('1000 Star Points claimed successfully!');
+        alert('1 Star Point claimed successfully!');
         await Promise.all([fetchLivePoints(), fetchPointsHistory(), fetchDashboardStats(), fetchBuyerProfile()]);
+      } else if (data.nextClaimDate) {
+        setNextClaimDate(new Date(data.nextClaimDate));
+        alert(data.message);
+      } else {
+        alert(data.message || 'Error claiming points');
       }
     } catch (error) {
       console.error('Error claiming points:', error);
@@ -219,6 +252,31 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
       setIsClaiming(false);
     }
   };
+
+  // Timer for cooldown
+  useEffect(() => {
+    if (!nextClaimDate) return;
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      const distance = nextClaimDate - now;
+
+      if (distance < 0) {
+        setNextClaimDate(null);
+        setTimeToNextClaim('');
+        clearInterval(interval);
+        return;
+      }
+
+      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+      setTimeToNextClaim(`${hours}h ${minutes}m ${seconds}s`);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [nextClaimDate]);
 
   const handleLogout = async () => {
     try {
@@ -299,23 +357,36 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
     { id: 'settings', label: 'Settings', icon: FaCog }
   ];
 
-  const StatCard = ({ title, value, icon: Icon, color, change, prefix = '', suffix = '' }) => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">
-            {prefix}{value}{suffix}
-          </p>
-          {change && (
-            <p className={`text-sm mt-1 ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {change >= 0 ? '↗' : '↘'} {Math.abs(change)}% from last month
-            </p>
+  const StatCard = ({ title, value, icon: Icon, color, change, prefix = '', suffix = '', iconBg = 'bg-blue-600' }) => (
+    <div className="stat-card-premium group relative overflow-hidden bg-white/80 backdrop-blur-md rounded-xl p-4 border border-white scroll-mt-24 transition-all duration-500 hover:-translate-y-1 hover:shadow-xl">
+      <div className="absolute top-0 right-0 w-24 h-24 -mr-12 -mt-12 bg-gradient-to-br from-white/10 to-transparent rounded-full transition-transform duration-700 group-hover:scale-150"></div>
+      
+      <div className="flex items-start justify-between relative z-10 gap-3">
+        <div className="space-y-2">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">{title}</span>
+            <div className="flex items-baseline gap-0.5">
+              <span className="text-xl font-black text-slate-900 tracking-tight">
+                {prefix}{typeof value === 'number' ? value.toLocaleString() : value}{suffix}
+              </span>
+            </div>
+          </div>
+          
+          {change !== undefined && (
+            <div className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold ${change >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+              {change >= 0 ? '↗' : '↘'} {Math.abs(change)}%
+            </div>
           )}
         </div>
-        <div className={`p-3 rounded-full ${color}`}>
-          <Icon className="h-6 w-6 text-white" />
+
+        <div className={`p-2.5 rounded-xl shadow-lg shadow-blue-900/10 transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 ${iconBg}`}>
+          <Icon className="h-4 w-4 text-white" />
         </div>
+      </div>
+      
+      <div className="mt-3 pt-3 border-t border-slate-50 flex items-center justify-between text-[8px] font-bold text-slate-300 uppercase tracking-wider relative z-10">
+         <span>Details</span>
+         <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
       </div>
     </div>
   );
@@ -475,55 +546,129 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
           {activeTab === 'overview' && dashboardStats && (
             <div className="space-y-6">
               {/* Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <StatCard
-                  title="Total Orders"
+                  title="Orders"
                   value={dashboardStats?.purchaseMetrics?.totalOrders || 0}
                   icon={FaShoppingCart}
-                  color="bg-blue-500"
-                  change={8}
+                  iconBg="bg-blue-600"
                 />
                 <StatCard
-                  title="Total Spent"
+                  title="Spent"
                   value={dashboardStats?.purchaseMetrics?.totalSpent || 0}
                   icon={FaDollarSign}
-                  color="bg-green-500"
+                  iconBg="bg-slate-900"
                   prefix="Rs "
-                  change={15}
                 />
                 <StatCard
-                  title="Star Points"
-                  value={dashboardStats?.buyerInfo?.loyaltyPoints || 0}
+                  title="Wishlist"
+                  value={dashboardStats?.wishlistStats?.totalItems || 0}
+                  icon={FaHeart}
+                  iconBg="bg-rose-500"
+                />
+                <StatCard
+                  title="All-Time Earned"
+                  value={dashboardStats?.purchaseMetrics?.totalPointsEarned || 0}
                   icon={FaMedal}
-                  color="bg-yellow-500"
+                  iconBg="bg-emerald-500"
                   suffix=" pts"
                 />
                 <StatCard
-                  title="Wishlist Items"
-                  value={dashboardStats?.wishlistStats?.totalItems || 0}
-                  icon={FaHeart}
-                  color="bg-red-500"
-                  change={5}
+                  title="Points Redeemed"
+                  value={dashboardStats?.purchaseMetrics?.totalPointsUsed || 0}
+                  icon={FaChartBar}
+                  iconBg="bg-rose-600"
+                  suffix=" pts"
+                />
+                <StatCard
+                  title="Balance"
+                  value={dashboardStats?.buyerInfo?.loyaltyPoints || 0}
+                  icon={FaStar}
+                  iconBg="bg-amber-400"
+                  suffix=" pts"
                 />
               </div>
 
-              {/* Star Points Banner */}
-              <div className="bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="bg-white/20 rounded-full p-3">
-                    <FaMedal className="text-3xl text-white" />
+              {/* Star Points Banner Condensed */}
+              <div className="loyalty-banner-modern relative overflow-hidden rounded-[1.5rem] p-6 text-white shadow-xl group transition-all duration-700 hover:shadow-blue-500/20">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-700 via-indigo-600 to-blue-900"></div>
+                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full -mr-48 -mt-48 blur-[80px] animate-pulse"></div>
+                
+                {/* Standard History Button: Top Right */}
+                <button 
+                   onClick={() => setActiveTab('loyalty')} 
+                   className="absolute top-4 right-4 z-20 p-2 bg-white/10 hover:bg-white/20 rounded-lg backdrop-blur-sm transition-all"
+                   title="View History Ledger"
+                >
+                   <FaHistory className="text-white text-sm" />
+                </button>
+
+                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div className="flex-1 space-y-3 text-center md:text-left">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/20 backdrop-blur-sm">
+                      <FaMedal className="text-amber-400 text-[10px]" />
+                      <span className="text-[8px] font-black uppercase tracking-widest text-blue-100">Loyalty Status</span>
+                    </div>
+                    
+                    <div className="space-y-0.5">
+                       <h2 className="text-3xl md:text-4xl font-black tracking-tight leading-none">
+                          {livePoints.toLocaleString()}
+                          <span className="text-lg font-bold ml-2 text-blue-200/80">Star Points</span>
+                       </h2>
+                       <div className="flex items-center justify-center md:justify-start gap-3 mt-1">
+                          <p className="text-sm text-blue-100/70 font-medium">
+                             ≈ <span className="text-white font-bold">Rs {livePoints.toLocaleString()}</span> Credit
+                          </p>
+                          <div className="h-4 w-px bg-white/20" />
+                          <p className="text-[10px] text-emerald-300 font-bold flex items-center gap-1">
+                             <span className="p-0.5 rounded-full bg-emerald-500/20 text-[8px]">↑</span>
+                             EARNED: {(dashboardStats?.purchaseMetrics?.totalPointsEarned || 0).toLocaleString()} pts
+                          </p>
+                          <div className="h-4 w-px bg-white/20" />
+                          <p className="text-[10px] text-rose-300 font-bold flex items-center gap-1">
+                             <span className="p-0.5 rounded-full bg-rose-500/20 text-[8px]">↓</span>
+                             REDEEMED: {(dashboardStats?.purchaseMetrics?.totalPointsUsed || 0).toLocaleString()} pts
+                          </p>
+                       </div>
+                    </div>
+
+                    {/* Proactive Action Button */}
+                    <div className="pt-2">
+                       <button 
+                          onClick={claimTestPoints}
+                          disabled={isClaiming || !!nextClaimDate}
+                          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-xs shadow-lg transition-all ${
+                             (isClaiming || !!nextClaimDate) 
+                             ? 'bg-white/20 text-white/40 cursor-not-allowed cursor-not-allowed border border-white/10' 
+                             : 'bg-white text-blue-700 hover:bg-yellow-400 hover:text-white hover:scale-105 active:scale-95'
+                          }`}
+                       >
+                          <FaGift className={isClaiming ? 'animate-bounce' : nextClaimDate ? '' : 'animate-pulse text-amber-400'} />
+                          {isClaiming ? 'CLAIMING...' : nextClaimDate ? `NEXT CLAIM: ${timeToNextClaim || '...'}` : 'CLAIM DAILY REWARD'}
+                       </button>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-yellow-100 uppercase tracking-wider">⭐ Star Points Balance</p>
-                    <p className="text-4xl font-extrabold tracking-tight">{(dashboardStats?.buyerInfo?.loyaltyPoints || 0).toLocaleString()} <span className="text-xl font-bold">pts</span></p>
-                    <p className="text-sm text-yellow-100 mt-1">≈ Rs {(dashboardStats?.buyerInfo?.loyaltyPoints || 0).toLocaleString()} purchasing power</p>
+
+                  <div className="bg-white/5 backdrop-blur-md border border-white/10 p-5 rounded-[1.5rem] max-w-[260px] relative overflow-hidden group">
+                     <div className="absolute top-0 right-0 w-16 h-16 bg-white/5 rounded-full -mr-8 -mt-8 animate-pulse"></div>
+                     <p className="text-[9px] font-black text-blue-200 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>
+                        How Points Work
+                     </p>
+                     <div className="space-y-2">
+                        <p className="text-xs font-bold flex items-center gap-2 text-white/90">
+                           <span className="text-lg">🛒</span> Earn 10% back on orders
+                        </p>
+                        <p className="text-xs font-bold flex items-center gap-2 text-white/90">
+                           <span className="text-lg">💳</span> 1 Point = 1 LKR Credit
+                        </p>
+                        <div className="pt-2 mt-2 border-t border-white/5">
+                           <p className="text-[9px] font-black text-yellow-400 uppercase tracking-widest leading-tight">
+                              Use points at checkout to pay fully!
+                           </p>
+                        </div>
+                     </div>
                   </div>
-                </div>
-                <div className="bg-white/20 rounded-2xl p-4 text-center min-w-[200px]">
-                  <p className="text-xs font-bold text-yellow-100 uppercase tracking-wider mb-2">How Points Work</p>
-                  <p className="text-sm font-semibold">🛒 Earn 10% back on every purchase</p>
-                  <p className="text-sm font-semibold mt-1">💳 1 Star Point = 1 LKR to spend</p>
-                  <p className="text-xs text-yellow-100 mt-2">Use points at checkout to pay fully!</p>
                 </div>
               </div>
 

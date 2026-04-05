@@ -1,6 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { sendMessage, getConversations, getMessages } = require('../controllers/messageController');
+const { 
+  sendMessage, 
+  getConversations, 
+  getMessages, 
+  uploadMessageImage, 
+  deleteMessage, 
+  deleteConversation 
+} = require('../controllers/messageController');
 const { authenticateBuyer } = require('../middleware/buyerAuth');
 const { authenticateSeller } = require('../middleware/sellerAuth');
 
@@ -58,7 +65,10 @@ const authenticateAnyUser = async (req, res, next) => {
 };
 
 router.post('/', authenticateAnyUser, sendMessage);
+router.post('/upload', authenticateAnyUser, uploadMessageImage);
 router.get('/conversations', authenticateAnyUser, getConversations);
 router.get('/:otherId', authenticateAnyUser, getMessages);
+router.delete('/conversation/:otherId', authenticateAnyUser, deleteConversation);
+router.delete('/:id', authenticateAnyUser, deleteMessage);
 
 module.exports = router;

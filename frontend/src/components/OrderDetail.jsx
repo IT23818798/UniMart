@@ -178,8 +178,9 @@ const OrderDetail = ({ order, onBack, onOrderUpdated, onChatWithSeller }) => {
             onClick={() => {
               const firstItem = order.orderItems?.[0];
               const sellerId = order.seller?._id || order.seller;
+              const prodId = firstItem?.product?._id || firstItem?.product || firstItem?._id;
               if (onChatWithSeller) {
-                onChatWithSeller(sellerId, firstItem?.product || firstItem?._id);
+                onChatWithSeller(sellerId, prodId);
               }
             }}
             className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"

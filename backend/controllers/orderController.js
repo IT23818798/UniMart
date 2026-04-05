@@ -86,7 +86,11 @@ exports.createOrder = async (req, res) => {
           'purchaseStats.totalOrders': newTotalOrders,
           'purchaseStats.totalSpent': newTotalSpent,
           'purchaseStats.lastOrderDate': new Date()
-        } 
+        },
+        $inc: {
+          'purchaseStats.totalPointsEarned': pointsEarned,
+          'purchaseStats.totalPointsUsed': pointsUsed
+        }
       },
       { new: true }
     );
@@ -104,6 +108,7 @@ exports.createOrder = async (req, res) => {
       deliveryMethod: 'pickup'
     });
 
+    console.log('Final Order object before save:', JSON.stringify(order, null, 2));
     await order.save();
 
     // 6. RECORD TRANSACTIONS IN LEDGER (Atomic for consistency)
@@ -136,7 +141,7 @@ exports.createOrder = async (req, res) => {
     res.status(201).json({ success: true, data: order });
   } catch (error) {
     console.error('Create order error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(500).json({ success: false, message: error.message || 'Server Error' });
   }
 };
 

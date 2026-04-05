@@ -1041,3 +1041,36 @@
     gap: 1rem;
   }
 }
+/* Premium Dashboard UI Overrides */
+.stat-card-premium {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
+}
+
+.stat-card-premium:hover {
+  border-color: rgba(37, 99, 235, 0.2);
+  box-shadow: 0 20px 40px -10px rgba(37, 99, 235, 0.1);
+}
+
+.loyalty-banner-modern {
+  background-size: 200% 200%;
+  animation: bg-pan 10s linear infinite;
+}
+
+@keyframes bg-pan {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { transform: scale(1); opacity: 0.1; }
+  50% { transform: scale(1.05); opacity: 0.15; }
+}
+
+.loyalty-banner-modern .animate-pulse {
+  animation: pulse-soft 8s ease-in-out infinite;
+}

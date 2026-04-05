@@ -166,6 +166,14 @@ const buyerSchema = new mongoose.Schema({
     loyaltyPoints: {
       type: Number,
       default: 0
+    },
+    totalPointsEarned: {
+      type: Number,
+      default: 0
+    },
+    totalPointsUsed: {
+      type: Number,
+      default: 0
     }
   },
   // Account status and verification

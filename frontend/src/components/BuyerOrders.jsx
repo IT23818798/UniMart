@@ -9,10 +9,26 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
   const [editingOrder, setEditingOrder] = useState(null);
   const [updatePhone, setUpdatePhone] = useState('');
   const [updateQuantity, setUpdateQuantity] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  const filteredOrders = orders.filter((order) => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+
+    const orderIdMatch = order._id.toLowerCase().includes(q);
+    const sellerMatch = order.seller?.businessName?.toLowerCase().includes(q);
+    const statusMatch = order.orderStatus?.toLowerCase().includes(q);
+    const phoneMatch = order.contactPhone?.toString().toLowerCase().includes(q);
+    const itemMatch = order.orderItems.some((item) =>
+      item.title?.toLowerCase().includes(q)
+    );
+
+    return orderIdMatch || sellerMatch || statusMatch || phoneMatch || itemMatch;
+  });
 
   const fetchOrders = async () => {
     try {
@@ -153,7 +169,18 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
 
   return (
     <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100/50 p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
-      <h2 className="text-2xl font-extrabold bg-gradient-to-r from-blue-800 to-cyan-600 bg-clip-text text-transparent mb-8 tracking-tight">My Orders</h2>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
+        <h2 className="text-2xl font-extrabold bg-gradient-to-r from-blue-800 to-cyan-600 bg-clip-text text-transparent tracking-tight">My Orders</h2>
+        <div className="w-full md:w-96">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search orders by ID, seller, item, status, phone..."
+            className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+      </div>
 
       <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm bg-white">
         <table className="min-w-full divide-y divide-gray-100">
@@ -168,7 +195,7 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 text-sm">
-            {orders.map(order => (
+            {filteredOrders.map(order => (
               <tr 
                 key={order._id} 
                 className="hover:bg-gray-50 cursor-pointer transition-colors"
@@ -205,10 +232,12 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
                 </td>
               </tr>
             ))}
-            {orders.length === 0 && (
+            {filteredOrders.length === 0 && (
               <tr>
                 <td colSpan="6" className="text-center py-8 text-gray-500 border border-dashed border-gray-300 rounded-lg">
-                  You haven't placed any orders yet.
+                  {orders.length === 0
+                    ? "You haven't placed any orders yet."
+                    : 'No orders match your search.'}
                 </td>
               </tr>
             )}

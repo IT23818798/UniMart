@@ -1,14 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
+import React, { useMemo, useState, useEffect } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { FaEdit, FaTrash, FaPlus, FaFilePdf } from 'react-icons/fa';
 
 const SellerProducts = ({ seller }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [formData, setFormData] = useState({
     title: '', description: '', price: '', stock: '', category: 'Electronics', image: ''
   });
+
+  const authHeaders = useMemo(() => {
+    const token = localStorage.getItem('sellerToken');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
 
   useEffect(() => {
     fetchProducts();
@@ -18,7 +26,7 @@ const SellerProducts = ({ seller }) => {
     try {
       const response = await fetch('http://localhost:5000/api/products/seller', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
+          ...authHeaders
         }
       });
       const data = await response.json();
@@ -29,6 +37,162 @@ const SellerProducts = ({ seller }) => {
       console.error('Error fetching products:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOrdersForReport = async () => {
+    const response = await fetch('http://localhost:5000/api/orders/seller', {
+      headers: {
+        ...authHeaders
+      }
+    });
+    const data = await response.json();
+    if (!response.ok || !data?.success) {
+      throw new Error(data?.message || 'Failed to fetch orders');
+    }
+    return data.data || [];
+  };
+
+  const generatePdfReport = async () => {
+    if (!localStorage.getItem('sellerToken')) {
+      alert('Seller session missing. Please login again.');
+      return;
+    }
+
+    try {
+      setGeneratingPdf(true);
+
+      // Ensure we have the latest product list for the report.
+      let reportProducts = products;
+      if (!reportProducts || reportProducts.length === 0) {
+        const response = await fetch('http://localhost:5000/api/products/seller', {
+          headers: { ...authHeaders }
+        });
+        const data = await response.json();
+        if (response.ok && data?.success) {
+          reportProducts = data.data || [];
+        }
+      }
+
+      const reportOrders = await fetchOrdersForReport();
+
+      const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      const now = new Date();
+      const sellerName = seller?.businessName || seller?.fullName || seller?.firstName || 'Seller';
+      const title = 'Seller Report (Products & Orders)';
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text(title, 40, 50);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Generated for: ${sellerName}`, 40, 70);
+      doc.text(`Generated at: ${now.toLocaleString()}`, 40, 85);
+      doc.text(`Total Products: ${reportProducts.length}`, 40, 100);
+      doc.text(`Total Orders: ${reportOrders.length}`, 40, 115);
+
+      // PRODUCTS TABLE
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('Products', 40, 145);
+
+      autoTable(doc, {
+        startY: 155,
+        head: [[
+          'ID',
+          'Title',
+          'Description',
+          'Category',
+          'Price (Rs)',
+          'Stock',
+          'Status',
+          'Rating',
+          'Reviews',
+          'Created'
+        ]],
+        body: (reportProducts || []).map((p) => [
+          String(p?._id || '').slice(0, 8),
+          p?.title || '',
+          p?.description || '',
+          p?.category || '',
+          p?.price ?? '',
+          p?.stock ?? '',
+          p?.status || '',
+          typeof p?.rating === 'number' ? p.rating.toFixed(1) : (p?.rating ?? ''),
+          p?.numOfReviews ?? '',
+          p?.createdAt ? new Date(p.createdAt).toLocaleDateString() : ''
+        ]),
+        styles: { fontSize: 7, cellPadding: 4, overflow: 'linebreak' },
+        headStyles: { fillColor: [22, 163, 74] },
+        margin: { left: 40, right: 40 }
+      });
+
+      // ORDER TABLE
+      const nextY = (doc.lastAutoTable?.finalY || 155) + 30;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('Orders', 40, nextY);
+
+      autoTable(doc, {
+        startY: nextY + 10,
+        head: [[
+          'Order ID',
+          'Buyer',
+          'Items',
+          'Total (Rs)',
+          'Status',
+          'Payment',
+          'Method',
+          'Created'
+        ]],
+        body: (reportOrders || []).map((o) => {
+          const buyerName = [o?.buyer?.firstName, o?.buyer?.lastName].filter(Boolean).join(' ') || (o?.buyer?.email || '');
+          const itemsText = (o?.orderItems || [])
+            .map((it) => `${it?.title || 'Item'} x${it?.quantity ?? ''} (Rs ${it?.price ?? ''})`)
+            .join('\n');
+
+          return [
+            String(o?._id || '').slice(0, 8),
+            buyerName,
+            itemsText,
+            o?.totalAmount ?? '',
+            o?.orderStatus || '',
+            o?.paymentStatus || '',
+            o?.deliveryMethod || '',
+            o?.createdAt ? new Date(o.createdAt).toLocaleDateString() : ''
+          ];
+        }),
+        styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
+        headStyles: { fillColor: [22, 163, 74] },
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 80 },
+          2: { cellWidth: 170 },
+          3: { cellWidth: 55 },
+          4: { cellWidth: 52 },
+          5: { cellWidth: 52 },
+          6: { cellWidth: 52 },
+          7: { cellWidth: 55 }
+        },
+        margin: { left: 40, right: 40 },
+        didDrawPage: (data) => {
+          // Simple footer with page number
+          const pageCount = doc.getNumberOfPages();
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.text(`Page ${pageCount}`, pageWidth - 80, doc.internal.pageSize.getHeight() - 20);
+        }
+      });
+
+      doc.save(`unimart-seller-report-${now.toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+      console.error('PDF generation error:', e);
+      alert(e?.message || 'Failed to generate PDF report');
+    } finally {
+      setGeneratingPdf(false);
     }
   };
 
@@ -135,18 +299,34 @@ const SellerProducts = ({ seller }) => {
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold text-gray-900">Manage Products</h2>
-        <button
-          onClick={() => {
-            setShowForm(!showForm);
-            if (showForm) {
-              setEditingId(null);
-              setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' });
-            }
-          }}
-          className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700"
-        >
-          <FaPlus /> {editingId && showForm ? 'Cancel Edit' : 'Add Product'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={generatePdfReport}
+            disabled={generatingPdf}
+            className={`px-4 py-2 rounded flex items-center gap-2 border transition-colors ${
+              generatingPdf
+                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+            }`}
+            title="Generate PDF report of products and orders"
+          >
+            <FaFilePdf className="text-red-600" />
+            {generatingPdf ? 'Generating...' : 'Download PDF Report'}
+          </button>
+
+          <button
+            onClick={() => {
+              setShowForm(!showForm);
+              if (showForm) {
+                setEditingId(null);
+                setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' });
+              }
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700"
+          >
+            <FaPlus /> {editingId && showForm ? 'Cancel Edit' : 'Add Product'}
+          </button>
+        </div>
       </div>
 
       {showForm && (

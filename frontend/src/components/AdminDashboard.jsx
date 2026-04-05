@@ -76,6 +76,122 @@ const PlaceholderContent = ({ title }) => (
   </div>
 );
 
+const AdminProductsManagement = ({ products, loading, onViewProduct }) => (
+  <div className="admin-management-dashboard">
+    <div className="section-header">
+      <h2>All Products</h2>
+      <p className="section-subtitle">View every product listed by sellers in the system.</p>
+    </div>
+    {loading ? (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Loading products...</p>
+      </div>
+    ) : (
+      <div className="table-container">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Seller</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th>Stock</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.length === 0 ? (
+              <tr>
+                <td colSpan="7" className="empty-row">No products found.</td>
+              </tr>
+            ) : (
+              products.map((product) => (
+                <tr key={product._id}>
+                  <td>{product.title || 'Untitled'}</td>
+                  <td>{product.seller?.businessName || `${product.seller?.firstName || ''} ${product.seller?.lastName || ''}`.trim() || 'Unknown'}</td>
+                  <td>{product.category || 'N/A'}</td>
+                  <td>Rs {product.price?.toFixed?.(2) ?? product.price ?? '0'}</td>
+                  <td>{product.stock ?? '0'}</td>
+                  <td>{product.status || 'active'}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="action-btn primary"
+                      onClick={() => onViewProduct && onViewProduct(product)}
+                    >
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+);
+
+const AdminOrdersManagement = ({ orders, loading, onViewOrder }) => (
+  <div className="admin-management-dashboard">
+    <div className="section-header">
+      <h2>All Orders</h2>
+      <p className="section-subtitle">Review orders placed by buyers across all sellers.</p>
+    </div>
+    {loading ? (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Loading orders...</p>
+      </div>
+    ) : (
+      <div className="table-container">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Order</th>
+              <th>Buyer</th>
+              <th>Seller</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.length === 0 ? (
+              <tr>
+                <td colSpan="7" className="empty-row">No orders found.</td>
+              </tr>
+            ) : (
+              orders.map((order) => (
+                <tr key={order._id}>
+                  <td>{order._id.slice(-8)}</td>
+                  <td>{order.buyer?.firstName ? `${order.buyer.firstName} ${order.buyer.lastName || ''}`.trim() : order.buyer?.email || 'Unknown'}</td>
+                  <td>{order.seller?.businessName || 'Unknown'}</td>
+                  <td>{order.orderItems?.length ?? 0}</td>
+                  <td>Rs {order.totalAmount?.toFixed?.(2) ?? '0.00'}</td>
+                  <td>{order.orderStatus || 'pending'}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="action-btn primary"
+                      onClick={() => onViewOrder && onViewOrder(order)}
+                    >
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+);
+
 // -----------------------------
 // Dashboard page
 // -----------------------------
@@ -2175,6 +2291,20 @@ const AdminDashboard = ({ admin, onLogout }) => {
   const [buyersLoading, setBuyersLoading] = useState(false);
   const buyerFetchingRef = React.useRef(false);
 
+  // Admin products
+  const [adminProducts, setAdminProducts] = useState([]);
+  const [adminProductsLoading, setAdminProductsLoading] = useState(false);
+  const adminProductsFetchingRef = React.useRef(false);
+
+  // Admin orders
+  const [adminOrders, setAdminOrders] = useState([]);
+  const [adminOrdersLoading, setAdminOrdersLoading] = useState(false);
+  const adminOrdersFetchingRef = React.useRef(false);
+
+  // Admin detail modals
+  const [selectedAdminProduct, setSelectedAdminProduct] = useState(null);
+  const [selectedAdminOrder, setSelectedAdminOrder] = useState(null);
+
   // Buyer edit modal (shared)
   const [selectedBuyer, setSelectedBuyer] = useState(null);
   const [isEditingBuyer, setIsEditingBuyer] = useState(false);
@@ -2233,6 +2363,14 @@ const AdminDashboard = ({ admin, onLogout }) => {
 
   useEffect(() => {
     if (activeTab === 'buyers') fetchBuyers();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'products') fetchAdminProducts();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'orders') fetchAdminOrders();
   }, [activeTab]);
 
   const fetchDashboardData = async () => {
@@ -2379,6 +2517,72 @@ const AdminDashboard = ({ admin, onLogout }) => {
     }
   };
 
+  const fetchAdminProducts = async () => {
+    if (adminProductsFetchingRef.current) return;
+    adminProductsFetchingRef.current = true;
+    setAdminProductsLoading(true);
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        setAdminProducts([]);
+        return;
+      }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch('http://localhost:5000/api/admin/products', {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        credentials: 'include',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (response.ok) {
+        const data = await response.json();
+        setAdminProducts(data.data || []);
+      } else {
+        setAdminProducts([]);
+      }
+    } catch (error) {
+      console.error('Error fetching admin products:', error);
+      setAdminProducts([]);
+    } finally {
+      adminProductsFetchingRef.current = false;
+      setAdminProductsLoading(false);
+    }
+  };
+
+  const fetchAdminOrders = async () => {
+    if (adminOrdersFetchingRef.current) return;
+    adminOrdersFetchingRef.current = true;
+    setAdminOrdersLoading(true);
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        setAdminOrders([]);
+        return;
+      }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch('http://localhost:5000/api/admin/orders', {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        credentials: 'include',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (response.ok) {
+        const data = await response.json();
+        setAdminOrders(data.data || []);
+      } else {
+        setAdminOrders([]);
+      }
+    } catch (error) {
+      console.error('Error fetching admin orders:', error);
+      setAdminOrders([]);
+    } finally {
+      adminOrdersFetchingRef.current = false;
+      setAdminOrdersLoading(false);
+    }
+  };
+
   const handleBuyerStatusChange = async (buyerId, newStatus) => {
     try {
       const token = localStorage.getItem('adminToken');
@@ -2462,6 +2666,14 @@ const AdminDashboard = ({ admin, onLogout }) => {
     setSelectedBuyer(null);
     setIsEditingBuyer(false);
     setEditBuyerData({});
+  }, []);
+
+  const handleCloseAdminProductModal = useCallback(() => {
+    setSelectedAdminProduct(null);
+  }, []);
+
+  const handleCloseAdminOrderModal = useCallback(() => {
+    setSelectedAdminOrder(null);
   }, []);
 
   const validateBuyerForm = () => {
@@ -2583,9 +2795,9 @@ const AdminDashboard = ({ admin, onLogout }) => {
           />
         );
       case 'products':
-        return <PlaceholderContent title="Product Management" />;
+        return <AdminProductsManagement products={adminProducts} loading={adminProductsLoading} onViewProduct={setSelectedAdminProduct} />;
       case 'orders':
-        return <PlaceholderContent title="Order Management" />;
+        return <AdminOrdersManagement orders={adminOrders} loading={adminOrdersLoading} onViewOrder={setSelectedAdminOrder} />;
       case 'profile':
         return (
           <AdminProfileContent
@@ -2734,20 +2946,102 @@ const AdminDashboard = ({ admin, onLogout }) => {
         <div className="main-content">{renderContent()}</div>
       </div>
 
-      {/* Buyer Details Modal */}
-      <BuyerDetailsModal
-        selectedBuyer={selectedBuyer}
-        isEditingBuyer={isEditingBuyer}
-        editBuyerData={editBuyerData}
-        buyerUpdateLoading={buyerUpdateLoading}
-        startEditingBuyer={startEditingBuyer}
-        cancelEditingBuyer={cancelEditingBuyer}
-        handleEditBuyerChange={handleEditBuyerChange}
-        handleUpdateBuyer={handleUpdateBuyer}
-        handleCloseBuyerModal={handleCloseBuyerModal}
-      />
+      {/* Admin Product Details Modal */}
+      {selectedAdminProduct && (
+        <div className="modal-overlay elegant" onClick={handleCloseAdminProductModal}>
+          <div className="modal-content product-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Product Details</h2>
+              <button className="modal-close" onClick={handleCloseAdminProductModal}>
+                <FaTimes />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="product-details-grid">
+                <div className="product-details-image">
+                  <img
+                    src={selectedAdminProduct.images?.[0] || 'https://via.placeholder.com/300x200?text=No+Image'}
+                    alt={selectedAdminProduct.title || 'Product Image'}
+                  />
+                </div>
+                <div className="product-details-info">
+                  <h3>{selectedAdminProduct.title || 'Untitled Product'}</h3>
+                  <p className="detail-label">Seller:</p>
+                  <p>{selectedAdminProduct.seller?.businessName || 'Unknown Seller'}</p>
+                  <p className="detail-label">Category:</p>
+                  <p>{selectedAdminProduct.category || 'N/A'}</p>
+                  <p className="detail-label">Price:</p>
+                  <p>Rs {selectedAdminProduct.price?.toFixed?.(2) ?? selectedAdminProduct.price ?? '0'}</p>
+                  <p className="detail-label">Stock:</p>
+                  <p>{selectedAdminProduct.stock ?? '0'}</p>
+                  <p className="detail-label">Status:</p>
+                  <p>{selectedAdminProduct.status || 'active'}</p>
+                </div>
+              </div>
+              <div className="product-details-description">
+                <h4>Description</h4>
+                <p>{selectedAdminProduct.description || 'No description available.'}</p>
+              </div>
+              <div className="product-details-meta">
+                <p><strong>Created:</strong> {new Date(selectedAdminProduct.createdAt || Date.now()).toLocaleString()}</p>
+                <p><strong>Updated:</strong> {new Date(selectedAdminProduct.updatedAt || Date.now()).toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Toast */}
+      {/* Admin Order Details Modal */}
+      {selectedAdminOrder && (
+        <div className="modal-overlay elegant" onClick={handleCloseAdminOrderModal}>
+          <div className="modal-content order-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Order Details</h2>
+              <button className="modal-close" onClick={handleCloseAdminOrderModal}>
+                <FaTimes />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="order-summary-grid">
+                <div>
+                  <p className="detail-label">Order ID</p>
+                  <p>{selectedAdminOrder._id}</p>
+                  <p className="detail-label">Status</p>
+                  <p>{selectedAdminOrder.orderStatus || 'pending'}</p>
+                  <p className="detail-label">Total Amount</p>
+                  <p>Rs {selectedAdminOrder.totalAmount?.toFixed?.(2) ?? '0.00'}</p>
+                </div>
+                <div>
+                  <p className="detail-label">Buyer</p>
+                  <p>{selectedAdminOrder.buyer?.firstName ? `${selectedAdminOrder.buyer.firstName} ${selectedAdminOrder.buyer.lastName || ''}`.trim() : selectedAdminOrder.buyer?.email || 'Unknown'}</p>
+                  <p className="detail-label">Seller</p>
+                  <p>{selectedAdminOrder.seller?.businessName || 'Unknown'}</p>
+                  <p className="detail-label">Contact Phone</p>
+                  <p>{selectedAdminOrder.contactPhone || 'N/A'}</p>
+                </div>
+              </div>
+              <div className="order-items-list">
+                <h4>Order Items</h4>
+                <ul>
+                  {selectedAdminOrder.orderItems?.map((item, idx) => (
+                    <li key={idx} className="order-item-row">
+                      <span>{item.title}</span>
+                      <span>{item.quantity} x Rs {item.price?.toFixed?.(2) ?? item.price ?? '0'}</span>
+                      <span className="font-semibold">Rs {(item.quantity * (item.price ?? 0)).toFixed(2)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="order-details-meta">
+                <p><strong>Created:</strong> {new Date(selectedAdminOrder.createdAt || Date.now()).toLocaleString()}</p>
+                <p><strong>Updated:</strong> {new Date(selectedAdminOrder.updatedAt || Date.now()).toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Buyer Details Modal */}
       <Toast message={toast.message} type={toast.type} show={toast.show} onClose={hideToast} />
     </div>
   );

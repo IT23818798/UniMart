@@ -8,6 +8,8 @@ const {
   changeAdminPassword,
   logoutAdmin,
   getDashboardStats,
+  getAllProducts,
+  getAllOrders,
   getAllAdmins
 } = require('../controllers/adminController');
 
@@ -47,6 +49,16 @@ router.put('/change-password', adminAuth, changeAdminPassword);
 // @route   GET /api/admin/dashboard
 // @access  Private (requires view_analytics permission)
 router.get('/dashboard', adminAuth, checkPermission('view_analytics'), getDashboardStats);
+
+// @desc    Get all products
+// @route   GET /api/admin/products
+// @access  Private (requires manage_products permission)
+router.get('/products', adminAuth, checkPermission('manage_products'), getAllProducts);
+
+// @desc    Get all orders
+// @route   GET /api/admin/orders
+// @access  Private (requires manage_orders permission)
+router.get('/orders', adminAuth, checkPermission('manage_orders'), getAllOrders);
 
 // @desc    Get all admins
 // @route   GET /api/admin/all

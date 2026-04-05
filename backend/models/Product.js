@@ -45,7 +45,9 @@ const productSchema = new mongoose.Schema({
   },
   rating: {
     type: Number,
-    default: 0
+    default: 0,
+    min: [0, 'Average rating cannot be less than 0'],
+    max: [5, 'Average rating cannot be more than 5']
   },
   numOfReviews: {
     type: Number,
@@ -57,17 +59,24 @@ const productSchema = new mongoose.Schema({
       ref: 'Buyer',
       required: true
     },
+    userId: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'Buyer'
+    },
     name: {
       type: String,
       required: true
     },
     rating: {
       type: Number,
-      required: true
+      required: [true, 'Please provide a rating'],
+      min: [1, 'Rating must be at least 1'],
+      max: [5, 'Rating cannot be more than 5']
     },
     comment: {
       type: String,
-      required: true
+      required: [true, 'Please provide a review comment'],
+      trim: true
     },
     createdAt: {
       type: Date,

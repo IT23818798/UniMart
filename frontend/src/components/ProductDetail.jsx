@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaStar, FaArrowLeft, FaShoppingCart, FaUserCircle, FaComment } from 'react-icons/fa';
+import { FaStar, FaArrowLeft, FaShoppingCart, FaUserCircle, FaComment, FaPen, FaTrashAlt } from 'react-icons/fa';
 
 const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller }) => {
   const [product, setProduct] = useState(null);
@@ -13,6 +13,31 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
   const [showSellerPopup, setShowSellerPopup] = useState(false);
   const [sellerLoading, setSellerLoading] = useState(false);
 
+  const canSubmitReview = Boolean(localStorage.getItem('buyerToken') && (buyer?._id || buyer?.id));
+
+  const getBuyerRequestOptions = (extraOptions = {}) => ({
+    ...extraOptions,
+    credentials: 'include',
+    headers: {
+      ...(extraOptions.headers || {}),
+      ...(localStorage.getItem('buyerToken') ? { Authorization: `Bearer ${localStorage.getItem('buyerToken')}` } : {})
+    }
+  });
+
+  const getReviewOwnerId = (review) => {
+    if (!review) return null;
+    if (typeof review.user === 'string') return review.user;
+    if (review.user?._id) return review.user._id;
+    if (typeof review.userId === 'string') return review.userId;
+    return review.userId?._id || null;
+  };
+
+  const isOwnReview = (review) => {
+    const reviewOwnerId = getReviewOwnerId(review);
+    const currentBuyerId = buyer?._id || buyer?.id;
+    return Boolean(reviewOwnerId && currentBuyerId && reviewOwnerId.toString() === currentBuyerId.toString());
+  };
+
   useEffect(() => {
     fetchProductDetails();
   }, [productId]);
@@ -22,7 +47,7 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
     try {
       setSellerLoading(true);
       setShowSellerPopup(true);
-      const response = await fetch(`http://localhost:5000/api/seller/info/${sellerId}`);
+      const response = await fetch(`http://localhost:5000/api/seller/info/${sellerId}`, getBuyerRequestOptions());
       const data = await response.json();
       if (data.success) {
         setSellerDetails(data.data);
@@ -52,6 +77,11 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
     e.preventDefault();
     if (!reviewComment.trim()) return;
 
+    if (!canSubmitReview) {
+      setReviewError('Please sign in as a buyer to submit a review.');
+      return;
+    }
+
     try {
       setSubmittingReview(true);
       setReviewError('');
@@ -63,10 +93,11 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
 
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
-        },
+        ...getBuyerRequestOptions({
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }),
         body: JSON.stringify({
           rating: reviewRating,
           comment: reviewComment
@@ -92,12 +123,16 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
 
   const deleteReview = async (reviewId) => {
     if (!window.confirm('Are you sure you want to delete your review?')) return;
+
+    if (!canSubmitReview) {
+      setReviewError('Please sign in as a buyer to delete your review.');
+      return;
+    }
+
     try {
       const response = await fetch(`http://localhost:5000/api/products/${productId}/reviews/${reviewId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
-        }
+        ...getBuyerRequestOptions()
       });
       const data = await response.json();
       if (data.success) {
@@ -108,11 +143,11 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
           setReviewRating(5);
         }
       } else {
-        alert(data.message || 'Failed to delete review');
+        setReviewError(data.message || 'Failed to delete review');
       }
     } catch (error) {
       console.error('Error deleting review:', error);
-      alert('Failed to connect to the server');
+      setReviewError('Failed to connect to the server');
     }
   };
 
@@ -125,6 +160,8 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
 
   if (loading) return <div className="p-8 text-center text-gray-500 pb-40">Loading product details...</div>;
   if (!product) return <div className="p-8 text-center text-red-500 pb-40">Product not found</div>;
+
+  const averageRating = Number(product.rating || 0).toFixed(1);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 max-w-5xl mx-auto mb-20">
@@ -160,7 +197,7 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
                 <FaStar key={i} className={i < (product.rating || 0) ? 'text-yellow-400' : 'text-gray-300'} />
               ))}
               <span className="ml-2 text-gray-600 text-sm">
-                ({product.numOfReviews || 0} reviews)
+                {averageRating} ({product.numOfReviews || 0} reviews)
               </span>
             </div>
             <span className="text-gray-400">|</span>
@@ -218,6 +255,12 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
           <div className="bg-gray-50 rounded-xl p-6 lg:col-span-1 border border-gray-100 h-fit">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">{editingReviewId ? 'Edit Your Review' : 'Write a Review'}</h3>
             {reviewError && <div className="text-red-500 text-sm mb-4 bg-red-50 p-2 rounded">{reviewError}</div>}
+
+            {!canSubmitReview && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Sign in as a buyer to write, edit, or delete reviews.
+              </div>
+            )}
             
               <form onSubmit={submitReview}>
                 <div className="mb-4">
@@ -228,7 +271,12 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
                         key={num}
                         type="button"
                         onClick={() => setReviewRating(num)}
-                        className="text-2xl focus:outline-none transition-transform hover:scale-110"
+                        disabled={!canSubmitReview || submittingReview}
+                        className={`text-2xl focus:outline-none transition-transform ${
+                          !canSubmitReview || submittingReview
+                            ? 'cursor-not-allowed opacity-50'
+                            : 'hover:scale-110'
+                        }`}
                       >
                         <FaStar className={num <= reviewRating ? 'text-yellow-400' : 'text-gray-300'} />
                       </button>
@@ -244,15 +292,16 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
                     className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none resize-none"
                     rows="4"
                     placeholder="What did you like or dislike? What did you use this product for?"
+                    disabled={!canSubmitReview || submittingReview}
                     required
                   ></textarea>
                 </div>
                 
                 <button
                   type="submit"
-                  disabled={submittingReview || !reviewComment.trim()}
+                  disabled={!canSubmitReview || submittingReview || !reviewComment.trim()}
                   className={`w-full py-2.5 px-4 rounded-lg text-white font-medium transition-colors ${
-                    submittingReview || !reviewComment.trim() 
+                    !canSubmitReview || submittingReview || !reviewComment.trim() 
                     ? 'bg-gray-400 cursor-not-allowed' 
                     : 'bg-blue-600 hover:bg-blue-700'
                   }`}
@@ -287,8 +336,8 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
                 <p className="text-gray-500">Be the first to review this product!</p>
               </div>
             ) : (
-              product.reviews.map((review, index) => (
-                <div key={index} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+              product.reviews.map((review) => (
+                <div key={review._id} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-3">
                       <div className="bg-blue-100 p-2 rounded-full text-blue-600">
@@ -312,19 +361,25 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
                         ))}
                       </div>
 
-                      {((review.user?._id || review.user) === (buyer?._id || buyer?.id)) && (
+                      {isOwnReview(review) && (
                         <div className="flex items-center gap-3 border-l border-gray-200 pl-4">
                           <button 
-                            onClick={() => startEditing(review)} 
-                            className="text-blue-500 hover:text-blue-700 text-xs font-bold uppercase tracking-wider transition-colors"
+                            onClick={() => startEditing(review)}
+                            disabled={submittingReview}
+                            aria-label="Edit review"
+                            title="Edit review"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-colors"
                           >
-                            Edit
+                            <FaPen className="text-sm" />
                           </button>
                           <button 
-                            onClick={() => deleteReview(review._id)} 
-                            className="text-red-500 hover:text-red-700 text-xs font-bold uppercase tracking-wider transition-colors"
+                            onClick={() => deleteReview(review._id)}
+                            disabled={submittingReview}
+                            aria-label="Delete review"
+                            title="Delete review"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
                           >
-                            Delete
+                            <FaTrashAlt className="text-sm" />
                           </button>
                         </div>
                       )}

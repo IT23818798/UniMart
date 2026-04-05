@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './BuyerDashboard.css';
 import BuyerProducts from './BuyerProducts';
 import BuyerOrders from './BuyerOrders';
+import BuyerReviews from './BuyerReviews';
 import ProductDetail from './ProductDetail';
 import OrderDetail from './OrderDetail';
 import PaymentGateway from './PaymentGateway';
@@ -61,6 +62,15 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   // Notification counts
   const [unreadMessages, setUnreadMessages] = useState(0);
 
+  const getBuyerRequestOptions = (extraOptions = {}) => ({
+    ...extraOptions,
+    credentials: 'include',
+    headers: {
+      ...(extraOptions.headers || {}),
+      ...(localStorage.getItem('buyerToken') ? { Authorization: `Bearer ${localStorage.getItem('buyerToken')}` } : {})
+    }
+  });
+
   useEffect(() => {
     if (initialBuyer) {
       setBuyer(initialBuyer);
@@ -75,8 +85,8 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
       setLoading(true);
       
       const [profileResponse, statsResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/buyer/profile', { credentials: 'include' }),
-        fetch('http://localhost:5000/api/buyer/dashboard/stats', { credentials: 'include' })
+        fetch('http://localhost:5000/api/buyer/profile', getBuyerRequestOptions()),
+        fetch('http://localhost:5000/api/buyer/dashboard/stats', getBuyerRequestOptions())
       ]);
 
       if (!profileResponse.ok || !statsResponse.ok) {
@@ -106,7 +116,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/buyer/dashboard/stats', { credentials: 'include' });
+      const response = await fetch('http://localhost:5000/api/buyer/dashboard/stats', getBuyerRequestOptions());
 
       if (response.ok) {
         const data = await response.json();
@@ -125,7 +135,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
     try {
       await fetch('http://localhost:5000/api/buyer/logout', {
         method: 'POST',
-        credentials: 'include'
+        ...getBuyerRequestOptions()
       });
     } catch (error) {
       console.error('Logout error:', error);
@@ -560,6 +570,8 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
               }}
             />
           )}
+
+          {activeTab === 'reviews' && <BuyerReviews />}
 
           {activeTab === 'order_detail' && viewingOrder && (
             <OrderDetail

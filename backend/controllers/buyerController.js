@@ -1,6 +1,7 @@
 const Buyer = require('../models/Buyer');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const Product = require('../models/Product');
 
 // Register a new buyer
 const registerBuyer = async (req, res) => {
@@ -274,9 +275,8 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Get buyer with password
     const buyer = await Buyer.findById(req.buyer.id).select('+password');
-    
+
     if (!buyer) {
       return res.status(404).json({
         success: false,
@@ -284,7 +284,6 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Verify current password
     const isCurrentPasswordValid = await buyer.comparePassword(currentPassword);
     if (!isCurrentPasswordValid) {
       return res.status(400).json({
@@ -293,7 +292,6 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Update password
     buyer.password = newPassword;
     await buyer.save();
 
@@ -306,6 +304,71 @@ const changePassword = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error changing password'
+    });
+  }
+};
+
+// Get all reviews written by the authenticated buyer
+const getBuyerReviews = async (req, res) => {
+  try {
+    const buyerId = req.buyer.id;
+
+    const products = await Product.find({
+      $or: [{ 'reviews.user': buyerId }, { 'reviews.userId': buyerId }]
+    })
+      .select('title category images seller reviews')
+      .populate('seller', 'businessName firstName lastName');
+
+    const reviews = [];
+
+    products.forEach((product) => {
+      const ownReviews = (product.reviews || []).filter(
+        (review) =>
+          (review.user && review.user.toString() === buyerId.toString()) ||
+          (review.userId && review.userId.toString() === buyerId.toString())
+      );
+
+      ownReviews.forEach((review) => {
+        reviews.push({
+          reviewId: review._id,
+          productId: product._id,
+          productTitle: product.title,
+          productCategory: product.category,
+          productImage: product.images?.[0] || '',
+          sellerName:
+            product.seller?.businessName ||
+            `${product.seller?.firstName || ''} ${product.seller?.lastName || ''}`.trim() ||
+            'Unknown Seller',
+          rating: review.rating,
+          comment: review.comment,
+          createdAt: review.createdAt
+        });
+      });
+    });
+
+    reviews.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const totalReviews = reviews.length;
+    const averageRating =
+      totalReviews > 0
+        ? Number((reviews.reduce((acc, item) => acc + Number(item.rating || 0), 0) / totalReviews).toFixed(1))
+        : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          totalReviews,
+          averageRating
+        },
+        reviews
+      }
+    });
+  } catch (error) {
+    console.error('Get buyer reviews error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching buyer reviews'
     });
   }
 };
@@ -576,6 +639,7 @@ module.exports = {
   addToWishlist,
   removeFromWishlist,
   addDeliveryAddress,
+  getBuyerReviews,
   getAllBuyers,
   deleteBuyer
 };

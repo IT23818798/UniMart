@@ -11,6 +11,7 @@ const {
   addToWishlist,
   removeFromWishlist,
   addDeliveryAddress,
+  getBuyerReviews,
   getAllBuyers,
   deleteBuyer
 } = require('../controllers/buyerController');
@@ -124,15 +125,7 @@ router.post('/reviews', (req, res) => {
   });
 });
 
-router.get('/reviews', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Get buyer reviews endpoint',
-    data: {
-      reviews: []
-    }
-  });
-});
+router.get('/reviews', authenticateBuyer, getBuyerReviews);
 
 // Notifications
 router.get('/notifications', (req, res) => {

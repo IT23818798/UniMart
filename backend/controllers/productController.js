@@ -1,5 +1,32 @@
 const Product = require('../models/Product');
 
+const recalculateReviewStats = (product) => {
+  product.numOfReviews = product.reviews.length;
+  product.rating = product.reviews.length > 0
+    ? product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length
+    : 0;
+};
+
+const normalizeReviewOwners = (product) => {
+  if (!product || !Array.isArray(product.reviews)) return;
+
+  product.reviews.forEach((review) => {
+    if (!review.user && review.userId) {
+      review.user = review.userId;
+    }
+    if (review.user && !review.userId) {
+      review.userId = review.user;
+    }
+  });
+};
+
+const getReviewOwnerId = (review) => {
+  if (!review) return null;
+  if (review.user) return review.user.toString();
+  if (review.userId) return review.userId.toString();
+  return null;
+};
+
 // Create a new product (Seller)
 exports.createProduct = async (req, res) => {
   try {
@@ -49,7 +76,7 @@ exports.getAllProducts = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const products = await Product.find(query)
-      .select('title price category images seller status description')
+      .select('title price category subcategory condition location tags images seller status description stock rating numOfReviews createdAt')
       .populate('seller', 'businessName firstName lastName')
       .sort('-createdAt')
       .skip(skip)
@@ -77,7 +104,8 @@ exports.getProductById = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
       .populate('seller', 'businessName firstName lastName')
-      .populate('reviews.user', 'firstName lastName');
+      .populate('reviews.user', 'firstName lastName')
+      .populate('reviews.userId', 'firstName lastName');
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
@@ -94,6 +122,7 @@ exports.getProductById = async (req, res) => {
 exports.createProductReview = async (req, res) => {
   try {
     const { rating, comment } = req.body;
+    const numericRating = Number(rating);
 
     // Check if buyer exists in req
     if (!req.buyer || !req.buyer.id) {
@@ -106,29 +135,35 @@ exports.createProductReview = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
+    if (Number.isNaN(numericRating) || numericRating < 1 || numericRating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be a number between 1 and 5' });
+    }
+
+    if (!comment || String(comment).trim() === '') {
+      return res.status(400).json({ success: false, message: 'Comment is required' });
+    }
+
     // Removed alreadyReviewed check to allow multiple item reviews
 
     const review = {
       user: req.buyer.id,
+      userId: req.buyer.id,
       name: req.buyer.fullName || 'Anonymous Buyer',
-      rating: Number(rating),
-      comment
+      rating: numericRating,
+      comment: String(comment).trim()
     };
 
     product.reviews.push(review);
+    normalizeReviewOwners(product);
+    recalculateReviewStats(product);
 
-    product.numOfReviews = product.reviews.length;
-
-    product.rating =
-      product.reviews.reduce((acc, item) => item.rating + acc, 0) /
-      product.reviews.length;
-
-    await product.save({ validateBeforeSave: false });
+    await product.save();
 
     // Repopulate product to return back with new review including user details
     const updatedProduct = await Product.findById(req.params.id)
       .populate('seller', 'businessName firstName lastName')
-      .populate('reviews.user', 'firstName lastName');
+      .populate('reviews.user', 'firstName lastName')
+      .populate('reviews.userId', 'firstName lastName');
 
     res.status(201).json({ success: true, message: 'Review added', data: updatedProduct });
   } catch (error) {
@@ -141,6 +176,8 @@ exports.createProductReview = async (req, res) => {
 exports.updateProductReview = async (req, res) => {
   try {
     const { rating, comment } = req.body;
+    const hasRating = rating !== undefined;
+    const hasComment = comment !== undefined;
     
     if (!req.buyer || !req.buyer.id) {
        return res.status(401).json({ success: false, message: 'Not authorized' });
@@ -152,19 +189,38 @@ exports.updateProductReview = async (req, res) => {
     const review = product.reviews.id(req.params.reviewId);
     if (!review) return res.status(404).json({ success: false, message: 'Review not found' });
 
-    if (review.user.toString() !== req.buyer.id.toString()) {
+    const reviewOwnerId = getReviewOwnerId(review);
+    if (!reviewOwnerId || reviewOwnerId !== req.buyer.id.toString()) {
       return res.status(403).json({ success: false, message: 'Not authorized to update this review' });
     }
 
-    if (rating) review.rating = Number(rating);
-    if (comment) review.comment = comment;
+    if (!hasRating && !hasComment) {
+      return res.status(400).json({ success: false, message: 'Provide rating or comment to update the review' });
+    }
 
-    product.rating = product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length;
+    if (hasRating) {
+      const numericRating = Number(rating);
+      if (Number.isNaN(numericRating) || numericRating < 1 || numericRating > 5) {
+        return res.status(400).json({ success: false, message: 'Rating must be a number between 1 and 5' });
+      }
+      review.rating = numericRating;
+    }
+
+    if (hasComment) {
+      if (!comment || String(comment).trim() === '') {
+        return res.status(400).json({ success: false, message: 'Comment is required' });
+      }
+      review.comment = String(comment).trim();
+    }
+
+    normalizeReviewOwners(product);
+    recalculateReviewStats(product);
     await product.save();
 
     const updatedProduct = await Product.findById(req.params.id)
        .populate('seller', 'businessName firstName lastName')
-       .populate('reviews.user', 'firstName lastName');
+       .populate('reviews.user', 'firstName lastName')
+       .populate('reviews.userId', 'firstName lastName');
 
     res.status(200).json({ success: true, message: 'Review updated', data: updatedProduct });
   } catch (error) {
@@ -186,23 +242,23 @@ exports.deleteProductReview = async (req, res) => {
     const review = product.reviews.id(req.params.reviewId);
     if (!review) return res.status(404).json({ success: false, message: 'Review not found' });
 
-    if (review.user.toString() !== req.buyer.id.toString()) {
+    const reviewOwnerId = getReviewOwnerId(review);
+    if (!reviewOwnerId || reviewOwnerId !== req.buyer.id.toString()) {
       return res.status(403).json({ success: false, message: 'Not authorized to delete this review' });
     }
 
     // Using mongoose remove/deleteOne for subdocument
     review.deleteOne();
 
-    product.numOfReviews = product.reviews.length;
-    product.rating = product.reviews.length > 0 
-      ? product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length 
-      : 0;
+    normalizeReviewOwners(product);
+    recalculateReviewStats(product);
 
     await product.save();
 
     const updatedProduct = await Product.findById(req.params.id)
        .populate('seller', 'businessName firstName lastName')
-       .populate('reviews.user', 'firstName lastName');
+       .populate('reviews.user', 'firstName lastName')
+       .populate('reviews.userId', 'firstName lastName');
 
     res.status(200).json({ success: true, message: 'Review deleted', data: updatedProduct });
   } catch (error) {

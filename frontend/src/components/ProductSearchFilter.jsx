@@ -35,6 +35,17 @@ const AVAILABILITY_OPTIONS = [
   { label: 'reserved', value: 'reserved' }
 ];
 
+const CATEGORY_SUBCATEGORY_MAP = {
+  electronics: ['Mobile Phones', 'Laptops', 'Accessories', 'Gaming', 'Audio'],
+  clothing: ['Men', 'Women', 'Kids', 'Shoes', 'Sportswear'],
+  books: ['Textbooks', 'Novels', 'Stationery', 'Reference', 'Exam Guides'],
+  home: ['Kitchen', 'Furniture', 'Decor', 'Appliances', 'Storage'],
+  beauty: ['Skincare', 'Haircare', 'Makeup', 'Fragrance', 'Personal Care'],
+  food: ['Snacks', 'Beverages', 'Fresh', 'Frozen', 'Bakery'],
+  services: ['Tutoring', 'Repairs', 'Delivery', 'Design', 'Other Services'],
+  other: ['Miscellaneous']
+};
+
 const ProductSearchFilter = ({
   products = [],
   onFilteredProductsChange,
@@ -64,14 +75,33 @@ const ProductSearchFilter = ({
     return ['all', ...Array.from(values).sort((a, b) => a.localeCompare(b))];
   }, [products]);
 
-  const subcategories = useMemo(() => {
+  const allDiscoveredSubcategories = useMemo(() => {
     const values = new Set();
     products.forEach((p) => {
       const value = p?.subcategory || p?.subCategory;
       if (value) values.add(String(value));
     });
-    return ['all', ...Array.from(values).sort((a, b) => a.localeCompare(b))];
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [products]);
+
+  const subcategories = useMemo(() => {
+    const selectedCategoryKey = String(category || '').toLowerCase();
+    const mapped = CATEGORY_SUBCATEGORY_MAP[selectedCategoryKey] || [];
+
+    const discoveredForCategory = products
+      .filter((p) => {
+        if (category === 'all') return true;
+        return String(p?.category || '').toLowerCase() === selectedCategoryKey;
+      })
+      .map((p) => p?.subcategory || p?.subCategory)
+      .filter(Boolean)
+      .map((value) => String(value));
+
+    const merged = Array.from(new Set([...mapped, ...discoveredForCategory, ...(category === 'all' ? allDiscoveredSubcategories : [])]))
+      .sort((a, b) => a.localeCompare(b));
+
+    return ['all', ...merged];
+  }, [products, category, allDiscoveredSubcategories]);
 
   const locations = useMemo(() => {
     const values = new Set();
@@ -357,6 +387,7 @@ const ProductSearchFilter = ({
             value={category}
             onChange={(e) => {
               setCategory(e.target.value);
+              setSubcategory('all');
               setPage(1);
             }}
             className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#18728a]"

@@ -27,10 +27,50 @@ const getReviewOwnerId = (review) => {
   return null;
 };
 
+const normalizeCondition = (value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const normalized = String(value).trim().toLowerCase().replace(/\s+/g, '_');
+  const allowed = ['new', 'used', 'like_new'];
+  return allowed.includes(normalized) ? normalized : undefined;
+};
+
+const normalizeAvailability = (value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+
+  const raw = String(value).trim().toLowerCase().replace(/\s+/g, '_');
+  const map = {
+    available: 'in_stock',
+    in_stock: 'in_stock',
+    out_of_stock: 'reserved',
+    sold: 'sold',
+    reserved: 'reserved'
+  };
+
+  return map[raw];
+};
+
+const normalizeTags = (value) => {
+  if (value === undefined || value === null) return undefined;
+
+  const items = Array.isArray(value)
+    ? value
+    : String(value)
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+  return Array.from(
+    new Set(items.map((item) => String(item).trim().toLowerCase()).filter(Boolean))
+  );
+};
+
 // Create a new product (Seller)
 exports.createProduct = async (req, res) => {
   try {
     const { title, description, price, stock, category, images } = req.body;
+    const condition = normalizeCondition(req.body.condition) || 'new';
+    const availability = normalizeAvailability(req.body.availability) || (Number(stock) > 0 ? 'in_stock' : 'reserved');
+    const tags = normalizeTags(req.body.tags) || [];
 
     // Validations
     if (!title || title.trim() === '') return res.status(400).json({ success: false, message: 'Title is required' });
@@ -45,6 +85,9 @@ exports.createProduct = async (req, res) => {
       price,
       stock,
       category,
+      condition,
+      availability,
+      tags,
       images: images || []
     });
 
@@ -76,7 +119,7 @@ exports.getAllProducts = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const products = await Product.find(query)
-      .select('title price category subcategory condition location tags images seller status description stock rating numOfReviews createdAt')
+      .select('title price category subcategory condition availability location tags images seller status description stock rating numOfReviews createdAt')
       .populate('seller', 'businessName firstName lastName')
       .sort('-createdAt')
       .skip(skip)
@@ -292,6 +335,27 @@ exports.updateProduct = async (req, res) => {
     // }
 
     const { title, description, price, stock } = req.body;
+    const updatePayload = { ...req.body };
+
+    if (req.body.condition !== undefined) {
+      const condition = normalizeCondition(req.body.condition);
+      if (!condition) {
+        return res.status(400).json({ success: false, message: 'Condition must be one of: new, used, like_new' });
+      }
+      updatePayload.condition = condition;
+    }
+
+    if (req.body.availability !== undefined) {
+      const availability = normalizeAvailability(req.body.availability);
+      if (!availability) {
+        return res.status(400).json({ success: false, message: 'Availability must be one of: in_stock, sold, reserved' });
+      }
+      updatePayload.availability = availability;
+    }
+
+    if (req.body.tags !== undefined) {
+      updatePayload.tags = normalizeTags(req.body.tags) || [];
+    }
 
     // Validations
     if (title !== undefined && title.trim() === '') return res.status(400).json({ success: false, message: 'Title cannot be empty' });
@@ -299,7 +363,7 @@ exports.updateProduct = async (req, res) => {
     if (price !== undefined && (isNaN(price) || price <= 0)) return res.status(400).json({ success: false, message: 'Valid price strictly greater than 0 is required' });
     if (stock !== undefined && (isNaN(stock) || stock < 0)) return res.status(400).json({ success: false, message: 'Valid stock number (0 or greater) is required' });
 
-    product = await Product.findByIdAndUpdate(req.params.id, req.body, {
+    product = await Product.findByIdAndUpdate(req.params.id, updatePayload, {
       new: true,
       runValidators: true
     });

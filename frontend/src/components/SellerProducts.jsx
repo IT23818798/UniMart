@@ -7,7 +7,7 @@ const SellerProducts = ({ seller }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
-    title: '', description: '', price: '', stock: '', category: 'Electronics', image: ''
+    title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: ''
   });
 
   useEffect(() => {
@@ -64,6 +64,9 @@ const SellerProducts = ({ seller }) => {
       price: product.price,
       stock: product.stock,
       category: product.category,
+      condition: product.condition || 'new',
+      availability: product.availability || 'in_stock',
+      tags: Array.isArray(product.tags) ? product.tags.join(', ') : '',
       image: product.images && product.images.length > 0 ? product.images[0] : ''
     });
     setEditingId(product._id);
@@ -86,6 +89,7 @@ const SellerProducts = ({ seller }) => {
         },
         body: JSON.stringify({
           ...formData,
+          tags: formData.tags,
           images: [formData.image]
         })
       });
@@ -98,7 +102,7 @@ const SellerProducts = ({ seller }) => {
         }
         setShowForm(false);
         setEditingId(null);
-        setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' });
+        setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' });
       } else {
         alert(data.message || `Error ${editingId ? 'updating' : 'adding'} product`);
       }
@@ -140,7 +144,7 @@ const SellerProducts = ({ seller }) => {
             setShowForm(!showForm);
             if (showForm) {
               setEditingId(null);
-              setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' });
+              setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' });
             }
           }}
           className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700"
@@ -161,6 +165,24 @@ const SellerProducts = ({ seller }) => {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+            <select name="condition" value={formData.condition} onChange={handleInputChange} className="border p-2 rounded">
+              <option value="new">New</option>
+              <option value="used">Used</option>
+              <option value="like_new">Like New</option>
+            </select>
+            <select name="availability" value={formData.availability} onChange={handleInputChange} className="border p-2 rounded">
+              <option value="in_stock">In Stock</option>
+              <option value="sold">Sold</option>
+              <option value="reserved">Reserved</option>
+            </select>
+            <input
+              type="text"
+              name="tags"
+              placeholder="Tags (comma separated)"
+              value={formData.tags}
+              onChange={handleInputChange}
+              className="border p-2 rounded"
+            />
             <div className="col-span-1 md:col-span-2 border p-3 rounded bg-white">
               <label className="block text-sm font-medium text-gray-700 mb-2">Upload Product Image</label>
               <input type="file" accept="image/*" onChange={handleImageChange} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100" />
@@ -175,7 +197,7 @@ const SellerProducts = ({ seller }) => {
           </div>
           <div className="mt-4 flex gap-2">
             <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingId ? 'Update Product' : 'Save Product'}</button>
-            <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' }); }} className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500">Cancel</button>
+            <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' }); }} className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500">Cancel</button>
           </div>
         </form>
       )}
@@ -187,6 +209,9 @@ const SellerProducts = ({ seller }) => {
               <th className="py-3 px-4 text-left">Product</th>
               <th className="py-3 px-4 text-left">Description</th>
               <th className="py-3 px-4 text-left">Category</th>
+              <th className="py-3 px-4 text-left">Condition</th>
+              <th className="py-3 px-4 text-left">Availability</th>
+              <th className="py-3 px-4 text-left">Tags</th>
               <th className="py-3 px-4 text-left">Price</th>
               <th className="py-3 px-4 text-left">Stock</th>
               <th className="py-3 px-4 text-left">Status</th>
@@ -204,6 +229,11 @@ const SellerProducts = ({ seller }) => {
                   {product.description}
                 </td>
                 <td className="py-3 px-4">{product.category}</td>
+                <td className="py-3 px-4">{String(product.condition || 'new').replace('_', ' ')}</td>
+                <td className="py-3 px-4">{String(product.availability || 'in_stock').replace('_', ' ')}</td>
+                <td className="py-3 px-4 max-w-[180px] truncate" title={Array.isArray(product.tags) ? product.tags.join(', ') : ''}>
+                  {Array.isArray(product.tags) && product.tags.length > 0 ? product.tags.join(', ') : '-'}
+                </td>
                 <td className="py-3 px-4">Rs {product.price}</td>
                 <td className="py-3 px-4">{product.stock}</td>
                 <td className="py-3 px-4">
@@ -223,7 +253,7 @@ const SellerProducts = ({ seller }) => {
             ))}
             {products.length === 0 && (
               <tr>
-                <td colSpan="7" className="text-center py-8 text-gray-500">No products found. Add your first product!</td>
+                <td colSpan="10" className="text-center py-8 text-gray-500">No products found. Add your first product!</td>
               </tr>
             )}
           </tbody>

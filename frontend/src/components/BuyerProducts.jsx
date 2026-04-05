@@ -112,8 +112,34 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="product-card-title text-lg font-bold text-gray-900 truncate">{product.title}</h3>
                     </div>
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                        {String(product.condition || 'new').replace('_', ' ')}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
+                          String(product.availability || '').toLowerCase() === 'sold'
+                            ? 'bg-red-100 text-red-700'
+                            : String(product.availability || '').toLowerCase() === 'reserved'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-emerald-100 text-emerald-700'
+                        }`}
+                      >
+                        {String(product.availability || 'in_stock').replace('_', ' ')}
+                      </span>
+                    </div>
                     <div className="text-xl font-extrabold text-blue-700 mb-2">Rs {product.price}</div>
                     <p className="product-card-seller text-xs text-gray-500 mb-3">Seller: <span className="font-semibold text-gray-700">{product.seller?.businessName || 'Unknown'}</span></p>
+
+                    {Array.isArray(product.tags) && product.tags.length > 0 && (
+                      <div className="mb-3 flex flex-wrap gap-1.5">
+                        {product.tags.slice(0, 3).map((tag) => (
+                          <span key={`${product._id}-${tag}`} className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="product-card-footer mt-4 pt-4 border-t border-gray-100">
                       <button

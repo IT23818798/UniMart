@@ -35,6 +35,27 @@ const productSchema = new mongoose.Schema({
       message: '{VALUE} is not supported'
     }
   },
+  condition: {
+    type: String,
+    enum: {
+      values: ['new', 'used', 'like_new'],
+      message: '{VALUE} is not supported condition'
+    },
+    default: 'new'
+  },
+  availability: {
+    type: String,
+    enum: {
+      values: ['in_stock', 'sold', 'reserved'],
+      message: '{VALUE} is not supported availability'
+    },
+    default: 'in_stock'
+  },
+  tags: [{
+    type: String,
+    trim: true,
+    lowercase: true
+  }],
   images: [{
     type: String
   }],

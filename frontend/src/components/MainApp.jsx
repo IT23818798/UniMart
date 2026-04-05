@@ -220,6 +220,20 @@ const MainApp = () => {
   const clearAuth = (type) => {
     localStorage.removeItem(`${type}Token`);
     localStorage.removeItem(`${type}Data`);
+    
+    // Clear user-specific filters and preferences on logout
+    if (type === 'buyer') {
+      // Clear buyer product search and filter preferences
+      localStorage.removeItem('unimart-product-search-history');
+      localStorage.removeItem('unimart-saved-product-filters');
+    } else if (type === 'seller') {
+      // Clear seller-specific filters if any
+      localStorage.removeItem('unimart-seller-filters');
+    } else if (type === 'admin') {
+      // Clear admin-specific filters if any
+      localStorage.removeItem('unimart-admin-filters');
+    }
+    
     setUser(null);
     setUserType(null);
   };

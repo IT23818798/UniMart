@@ -1,219 +1,274 @@
-import Order from "../models/order.js";
-import Product from "../models/Product.js";
-export function isAdmin(req) {
-    return req.user && (req.user.type === "admin" || req.user.role === "admin");
-}
+const Order = require('../models/Order');
+const Product = require('../models/Product');
+const Seller = require('../models/Seller');
 
-export function isCustomer(req) {
-    return req.user && (req.user.type === "customer" || req.user.type === "buyer" || req.user.role === "customer" || req.user.role === "buyer");
-}
+const generateReceiptNo = () => {
+  const ts = Date.now().toString(36).toUpperCase();
+  const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `RCPT-${ts}-${rnd}`;
+};
 
-// ================= CREATE ORDER =================
-// Enhanced to split multi-seller orders
-export async function createOrder(req, res) {
+// Create a new order (Buyer)
+exports.createOrder = async (req, res) => {
+  try {
+    const { orderItems, contactPhone } = req.body;
 
-    console.log("BODY:", req.body);
-    console.log("USER:", req.user);
-
-    try {
-        const user = req.user;
-
-        if (!user) {
-            return res.status(401).json({
-                message: "Unauthorized user"
-            });
-        }
-
-        // ================= CUSTOMER DETAILS =================
-        let customerName = req.body.customerName || (user.firstName + " " + user.lastName);
-        let phone = req.body.phone || "Not Provided";
-
-        const itemsInRequest = req.body.items;
-
-        if (!itemsInRequest || !Array.isArray(itemsInRequest)) {
-            return res.status(400).json({
-                message: "Items should be an array"
-            });
-        }
-
-        // ================= VALIDATE AND PREPARE ITEMS =================
-        const itemsBySellerMap = new Map(); // Map to group items by sellerId
-        let totalOverall = 0;
-
-        for (let i = 0; i < itemsInRequest.length; i++) {
-            const item = itemsInRequest[i];
-
-            const productItem = await Product.findById(item._id);
-
-            if (!productItem) {
-                return res.status(400).json({
-                    message: "Product item not found",
-                    _id: item._id
-                });
-            }
-
-            // ✅ Check stock
-            if (productItem.quantity < item.quantity) {
-                return res.status(400).json({
-                    message: `Insufficient stock for ${productItem.name}`,
-                    availableStock: productItem.quantity
-                });
-            }
-
-            // Get seller ID from product
-            const sellerId = productItem.sellerId.toString();
-
-            // Prepare item data (includes sellerId now)
-            const itemData = {
-                _id: productItem._id,
-                sellerId: productItem.sellerId,
-                name: productItem.name,
-                description: productItem.description,
-                price: productItem.price,
-                category: productItem.category,
-                image: productItem.image,
-                prepTime: productItem.prepTime,
-                quantity: item.quantity
-            };
-
-            // Group items by seller
-            if (!itemsBySellerMap.has(sellerId)) {
-                itemsBySellerMap.set(sellerId, {
-                    items: [],
-                    total: 0,
-                    sellerId: productItem.sellerId
-                });
-            }
-
-            const sellerGroup = itemsBySellerMap.get(sellerId);
-            sellerGroup.items.push(itemData);
-            sellerGroup.total += productItem.price * item.quantity;
-            totalOverall += productItem.price * item.quantity;
-        }
-
-        // ================= CREATE SEPARATE ORDERS FOR EACH SELLER =================
-        const createdOrders = [];
-
-        for (const [sellerId, sellerGroup] of itemsBySellerMap) {
-            // Generate unique order ID for each seller order
-            const orderList = await Order.find().sort({ date: -1 }).limit(1);
-
-            let newOrderID = "ODR0000001";
-
-            if (orderList.length !== 0) {
-                let lastOrderID = orderList[0].orderID;
-                let lastNumber = parseInt(lastOrderID.replace("ODR", ""));
-                let newNumber = lastNumber + 1;
-
-                newOrderID = "ODR" + newNumber.toString().padStart(7, "0");
-            }
-
-            // Create order for this seller
-            const newOrder = new Order({
-                orderID: newOrderID,
-                sellerId: sellerGroup.sellerId,
-                items: sellerGroup.items,
-                customerName,
-                email: user.email,
-                phone,
-                address: req.body.address,
-                total: sellerGroup.total
-            });
-
-            const savedOrder = await newOrder.save();
-            createdOrders.push(savedOrder);
-
-            // ================= REDUCE STOCK FOR SELLER'S ITEMS =================
-            for (let i = 0; i < sellerGroup.items.length; i++) {
-                const item = sellerGroup.items[i];
-
-                await Product.findByIdAndUpdate(
-                    item._id,
-                    { $inc: { quantity: -item.quantity } }
-                );
-            }
-        }
-
-        res.status(201).json({
-            message: createdOrders.length === 1
-                ? "Order Created Successfully"
-                : `Orders Created Successfully (${createdOrders.length} orders from different sellers)`,
-            orders: createdOrders,
-            totalValue: totalOverall,
-            orderCount: createdOrders.length
-        });
-
-    } catch (err) {
-        console.error("ORDER ERROR:", err.message);
-        res.status(500).json({
-            message: "Internal server error"
-        });
-    }
-}
-
-// ================= GET ORDERS =================
-export async function getOrders(req, res) {
-
-    try {
-        if (isAdmin(req)) {
-
-            const orders = await Order
-                .find()
-                .populate("items._id")
-                .sort({ date: -1 });
-
-            return res.json(orders);
-
-        } else if (isCustomer(req)) {
-
-            const user = req.user;
-
-            const orders = await Order
-                .find({ email: user.email })
-                .populate("items._id")
-                .sort({ date: -1 });
-
-            return res.json(orders);
-
-        } else {
-            return res.status(403).json({
-                message: "You are not authorized to view orders"
-            });
-        }
-
-    } catch (err) {
-        res.status(500).json({
-            message: "Error fetching orders"
-        });
-    }
-}
-
-// ================= UPDATE ORDER STATUS =================
-export async function updateOrderStatus(req, res) {
-
-    if (!isAdmin(req)) {
-        return res.status(403).json({
-            message: "You are not authorized to update order status"
-        });
+    if (!orderItems || orderItems.length === 0) {
+      return res.status(400).json({ success: false, message: 'No order items provided' });
     }
 
-    try {
-        const { orderID } = req.params;
-        const { status } = req.body;
-
-        await Order.updateOne(
-            { orderID: orderID },
-            { status: status }
-        );
-
-        res.json({
-            message: "Order status updated successfully"
-        });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({
-            message: "Failed to update order status"
-        });
+    if (!contactPhone || contactPhone.trim().length < 10) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid contact phone number (at least 10 digits).' });
     }
-}
+
+    // Validate products and calculate total
+    let totalAmount = 0;
+    let sellerId = null;
+    let sellerBusinessName = '';
+
+    for (let item of orderItems) {
+      const product = await Product.findById(item.product).populate('seller', 'businessName');
+      if (!product) {
+        return res.status(404).json({ success: false, message: `Product not found: ${item.product}` });
+      }
+
+      const productSellerId = product.seller?._id || product.seller;
+      const productSellerName = product.seller?.businessName || '';
+
+      // Check stock
+      if (product.stock < item.quantity) {
+        return res.status(400).json({ success: false, message: `Insufficient stock for product: ${product.title}` });
+      }
+
+      // Ensure all items are from same seller for simple MVP order logic
+      if (!sellerId) {
+        sellerId = productSellerId;
+        sellerBusinessName = productSellerName;
+      } else if (sellerId.toString() !== productSellerId.toString()) {
+        return res.status(400).json({ success: false, message: 'Cart contains items from multiple sellers. Please order separately.' });
+      }
+
+      totalAmount += product.price * item.quantity;
+
+      // Update stock
+      product.stock -= item.quantity;
+      await product.save();
+    }
+
+    if (!sellerBusinessName && sellerId) {
+      const sellerDoc = await Seller.findById(sellerId).select('businessName');
+      sellerBusinessName = sellerDoc?.businessName || '';
+    }
+
+    const order = new Order({
+      receiptNo: generateReceiptNo(),
+      buyer: req.buyer.id,
+      seller: sellerId,
+      sellerSnapshot: {
+        sellerId,
+        businessName: sellerBusinessName
+      },
+      orderItems,
+      totalAmount,
+      contactPhone,
+      deliveryMethod: 'pickup'
+    });
+
+    await order.save();
+
+    // Populate product details for response
+    await order.populate('orderItems.product', 'title category images');
+
+    res.status(201).json({ success: true, data: order });
+  } catch (error) {
+    console.error('Create order error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Get logged in buyer's orders (Buyer)
+exports.getBuyerOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({ buyer: req.buyer.id })
+      .populate('seller', 'businessName')
+      .sort('-createdAt');
+
+    res.status(200).json({ success: true, data: orders, count: orders.length });
+  } catch (error) {
+    console.error('Get buyer orders error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Get orders related to a seller (Seller)
+exports.getSellerOrders = async (req, res) => {
+  try {
+    const sellerId = req.seller.id;
+    const sellerBusinessName = req.seller.businessName;
+
+    const orders = await Order.find({
+      $or: [
+        { seller: sellerId },
+        { 'sellerSnapshot.sellerId': sellerId },
+        ...(sellerBusinessName ? [{ 'sellerSnapshot.businessName': sellerBusinessName }] : [])
+      ]
+    })
+      .populate('buyer', 'firstName lastName email')
+      .sort('-createdAt');
+
+    res.status(200).json({ success: true, data: orders, count: orders.length });
+  } catch (error) {
+    console.error('Get seller orders error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Update order status (Seller)
+exports.updateOrderStatus = async (req, res) => {
+  try {
+    let order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    if (order.seller.toString() !== req.seller.id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this order' });
+    }
+
+    const validStatuses = ['pending', 'cancelled', 'done'];
+    if (!validStatuses.includes(req.body.status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    order.orderStatus = req.body.status;
+    await order.save();
+
+    res.status(200).json({ success: true, data: order });
+  } catch (error) {
+    console.error('Update order status error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Delete order (Seller)
+exports.deleteOrderSeller = async (req, res) => {
+  try {
+    const order = await Order.findOneAndDelete({ _id: req.params.id, seller: req.seller.id });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    res.status(200).json({ success: true, data: {} });
+  } catch (error) {
+    console.error('Delete order seller error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Delete order (Buyer)
+exports.deleteOrderBuyer = async (req, res) => {
+  try {
+    const order = await Order.findOneAndDelete({ _id: req.params.id, buyer: req.buyer.id });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    res.status(200).json({ success: true, data: {} });
+  } catch (error) {
+    console.error('Delete order buyer error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Update order status (Buyer)
+exports.updateOrderStatusBuyer = async (req, res) => {
+  try {
+    let order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    if (order.buyer.toString() !== req.buyer.id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this order' });
+    }
+
+    const validStatuses = ['pending', 'cancelled', 'done'];
+    if (!validStatuses.includes(req.body.status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    order.orderStatus = req.body.status;
+    await order.save();
+
+    res.status(200).json({ success: true, data: order });
+  } catch (error) {
+    console.error('Update order status buyer error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Update order details (Buyer) - Allows updating shipping address for pending orders
+exports.updateOrderBuyer = async (req, res) => {
+  try {
+    let order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    if (order.buyer.toString() !== req.buyer.id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this order' });
+    }
+
+    let modified = false;
+
+    // Update contactPhone if provided
+    if (req.body.contactPhone) {
+      if (req.body.contactPhone.trim().length < 10) {
+        return res.status(400).json({ success: false, message: 'Valid phone number is required (at least 10 digits)' });
+      }
+      order.contactPhone = req.body.contactPhone;
+      modified = true;
+    }
+
+    // Update quantity if provided
+    if (req.body.quantity !== undefined) {
+      const newQuantity = parseInt(req.body.quantity);
+      if (isNaN(newQuantity) || newQuantity < 1) {
+        return res.status(400).json({ success: false, message: 'Valid quantity minimum is 1' });
+      }
+
+      if (order.orderItems && order.orderItems.length > 0) {
+        const oldQuantity = order.orderItems[0].quantity;
+        const difference = newQuantity - oldQuantity;
+
+        if (difference !== 0) {
+          const product = await Product.findById(order.orderItems[0].product);
+          if (!product) {
+            return res.status(404).json({ success: false, message: 'Original product not found' });
+          }
+
+          if (difference > 0 && product.stock < difference) {
+            return res.status(400).json({ success: false, message: 'Insufficient stock to increase quantity' });
+          }
+
+          product.stock -= difference;
+          await product.save();
+
+          order.orderItems[0].quantity = newQuantity;
+          order.totalAmount += difference * order.orderItems[0].price;
+          modified = true;
+        }
+      }
+    }
+
+    if (modified) {
+      await order.save();
+    }
+
+    res.status(200).json({ success: true, data: order });
+  } catch (error) {
+    console.error('Update order details buyer error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};

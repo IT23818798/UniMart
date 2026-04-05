@@ -1,31 +1,55 @@
 import React, { useState, useEffect } from 'react';
-import { FaTrash, FaEdit, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaTrash, FaEdit, FaCheck, FaTimes, FaSync } from 'react-icons/fa';
 
-const SellerOrders = ({ seller }) => {
+const SellerOrders = ({ seller, refreshKey = 0 }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [editStatus, setEditStatus] = useState('');
+  const [fetchError, setFetchError] = useState('');
 
   useEffect(() => {
     fetchOrders();
+
+    const intervalId = setInterval(() => {
+      fetchOrders(true);
+    }, 5000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
-  const fetchOrders = async () => {
+  useEffect(() => {
+    fetchOrders(true);
+  }, [refreshKey]);
+
+  const fetchOrders = async (silent = false) => {
     try {
-      const response = await fetch('http://localhost:5000/api/orders/seller', {
+      if (!silent) setLoading(true);
+      if (!silent) setFetchError('');
+      const response = await fetch(`http://localhost:5000/api/orders/seller?ts=${Date.now()}`, {
+        credentials: 'include',
+        cache: 'no-store',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
+          ...(localStorage.getItem('sellerToken')
+            ? { 'Authorization': `Bearer ${localStorage.getItem('sellerToken')}` }
+            : {})
         }
       });
       const data = await response.json();
-      if (data.success) {
+      if (response.ok && data.success) {
         setOrders(data.data);
+      } else {
+        if (!silent) {
+          setFetchError(data.message || 'Failed to fetch seller orders');
+        }
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
+      if (!silent) {
+        setFetchError('Failed to fetch seller orders. Please refresh.');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -75,14 +99,31 @@ const SellerOrders = ({ seller }) => {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-      <h2 className="text-xl font-bold text-gray-900 mb-6">Manage Orders</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold text-gray-900">Manage Orders</h2>
+        <button
+          type="button"
+          onClick={() => fetchOrders(false)}
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+        >
+          <FaSync className="text-xs" /> Refresh
+        </button>
+      </div>
+
+      {fetchError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {fetchError}
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white">
           <thead className="bg-gray-50 uppercase text-xs text-gray-500">
             <tr>
+              <th className="py-3 px-4 text-left">Receipt</th>
               <th className="py-3 px-4 text-left">Order ID</th>
               <th className="py-3 px-4 text-left">Buyer</th>
+              <th className="py-3 px-4 text-left">Contact</th>
               <th className="py-3 px-4 text-left">Items</th>
               <th className="py-3 px-4 text-left">Total</th>
               <th className="py-3 px-4 text-left">Status</th>
@@ -92,8 +133,10 @@ const SellerOrders = ({ seller }) => {
           <tbody className="divide-y divide-gray-200 text-sm">
             {orders.map(order => (
               <tr key={order._id} className="hover:bg-gray-50">
+                <td className="py-3 px-4 font-mono text-xs text-blue-700">{order.receiptNo || 'N/A'}</td>
                 <td className="py-3 px-4 font-mono text-xs">{order._id.substring(0, 8)}...</td>
                 <td className="py-3 px-4">{order.buyer?.firstName} {order.buyer?.lastName}</td>
+                <td className="py-3 px-4 text-xs text-gray-600">{order.contactPhone || 'N/A'}</td>
                 <td className="py-3 px-4">
                   {order.orderItems.map((item, i) => (
                     <div key={i}>{item.title} (x{item.quantity})</div>
@@ -144,7 +187,7 @@ const SellerOrders = ({ seller }) => {
             ))}
             {orders.length === 0 && (
               <tr>
-                <td colSpan="6" className="text-center py-8 text-gray-500">No orders received yet.</td>
+                <td colSpan="8" className="text-center py-8 text-gray-500">No orders received yet.</td>
               </tr>
             )}
           </tbody>

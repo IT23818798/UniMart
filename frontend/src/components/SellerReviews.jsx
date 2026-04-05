@@ -50,10 +50,17 @@ const SellerReviews = ({ seller }) => {
   const sellerReviewsList = seller?.reviews ? [...seller.reviews].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
 
   const renderStars = (rating) => {
+    const value = Math.max(0, Math.min(5, Number(rating) || 0));
+
     return (
-      <div className="flex text-yellow-400">
+      <div className="flex items-center gap-0.5">
         {[...Array(5)].map((_, i) => (
-          <FaStar key={i} className={i < rating ? 'text-yellow-400' : 'text-gray-200'} />
+          <span key={i} className="relative inline-flex">
+            <FaStar className="text-gray-200" />
+            <span className="absolute inset-0 overflow-hidden" style={{ width: `${Math.max(0, Math.min(1, value - i)) * 100}%` }}>
+              <FaStar className="text-yellow-400" />
+            </span>
+          </span>
         ))}
       </div>
     );
@@ -98,7 +105,12 @@ const SellerReviews = ({ seller }) => {
                       })}
                     </span>
                   </div>
-                  {renderStars(review.rating)}
+                  <div className="flex items-center gap-2">
+                    {renderStars(review.rating)}
+                    <span className="text-xs font-medium text-gray-500">
+                      {Number(review.rating || 0) > 0 ? `${Number(review.rating || 0).toFixed(1)} / 5` : 'No rate'}
+                    </span>
+                  </div>
                 </div>
                 <div className="mb-2">
                   <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
@@ -140,7 +152,12 @@ const SellerReviews = ({ seller }) => {
                       })}
                     </span>
                   </div>
-                  {renderStars(review.rating)}
+                  <div className="flex items-center gap-2">
+                    {renderStars(review.rating)}
+                    <span className="text-xs font-medium text-gray-500">
+                      {Number(review.rating || 0) > 0 ? `${Number(review.rating || 0).toFixed(1)} / 5` : 'No rate'}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-sm text-gray-700 mt-2">{review.comment}</p>
               </div>

@@ -1,5 +1,28 @@
 const Product = require('../models/Product');
 
+const normalizeRating = (rating) => {
+  if (rating === undefined || rating === null || rating === '') {
+    return 0;
+  }
+
+  const numericRating = Number(rating);
+  if (Number.isNaN(numericRating) || numericRating < 0 || numericRating > 5) {
+    return null;
+  }
+
+  return numericRating;
+};
+
+const calculateAverageRating = (reviews = []) => {
+  const ratedReviews = reviews.filter((review) => Number(review.rating || 0) > 0);
+
+  if (ratedReviews.length === 0) {
+    return 0;
+  }
+
+  return ratedReviews.reduce((acc, item) => acc + Number(item.rating || 0), 0) / ratedReviews.length;
+};
+
 // Create a new product (Seller)
 exports.createProduct = async (req, res) => {
   try {
@@ -32,40 +55,8 @@ exports.createProduct = async (req, res) => {
 // Get all products (Public/Buyer)
 exports.getAllProducts = async (req, res) => {
   try {
-    const { keyword, category, page = 1, limit = 12 } = req.query;
-    const query = { status: 'active' };
-
-    if (keyword) {
-      query.$or = [
-        { title: { $regex: keyword, $options: 'i' } },
-        { description: { $regex: keyword, $options: 'i' } }
-      ];
-    }
-
-    if (category) {
-      query.category = category;
-    }
-
-    const skip = (page - 1) * limit;
-
-    const products = await Product.find(query)
-      .select('title price category images seller status description')
-      .populate('seller', 'businessName firstName lastName')
-      .sort('-createdAt')
-      .skip(skip)
-      .limit(Number(limit))
-      .lean();
-
-    const totalProducts = await Product.countDocuments(query);
-
-    res.status(200).json({ 
-      success: true, 
-      data: products, 
-      count: products.length,
-      totalProducts,
-      pagesCount: Math.ceil(totalProducts / limit),
-      currentPage: Number(page)
-    });
+    const products = await Product.find({ status: 'active' }).populate('seller', 'businessName firstName lastName');
+    res.status(200).json({ success: true, data: products, count: products.length });
   } catch (error) {
     console.error('Get all products error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -106,22 +97,24 @@ exports.createProductReview = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
+    const normalizedRating = normalizeRating(rating);
+    if (normalizedRating === null) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 0 and 5' });
+    }
+
     // Removed alreadyReviewed check to allow multiple item reviews
 
     const review = {
       user: req.buyer.id,
       name: req.buyer.fullName || 'Anonymous Buyer',
-      rating: Number(rating),
+      rating: normalizedRating,
       comment
     };
 
     product.reviews.push(review);
 
     product.numOfReviews = product.reviews.length;
-
-    product.rating =
-      product.reviews.reduce((acc, item) => item.rating + acc, 0) /
-      product.reviews.length;
+    product.rating = calculateAverageRating(product.reviews);
 
     await product.save({ validateBeforeSave: false });
 
@@ -156,10 +149,18 @@ exports.updateProductReview = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to update this review' });
     }
 
-    if (rating) review.rating = Number(rating);
+    if (rating !== undefined && rating !== null && rating !== '') {
+      const normalizedRating = normalizeRating(rating);
+      if (normalizedRating === null) {
+        return res.status(400).json({ success: false, message: 'Rating must be between 0 and 5' });
+      }
+
+      review.rating = normalizedRating;
+    }
+
     if (comment) review.comment = comment;
 
-    product.rating = product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length;
+    product.rating = calculateAverageRating(product.reviews);
     await product.save();
 
     const updatedProduct = await Product.findById(req.params.id)
@@ -194,9 +195,7 @@ exports.deleteProductReview = async (req, res) => {
     review.deleteOne();
 
     product.numOfReviews = product.reviews.length;
-    product.rating = product.reviews.length > 0 
-      ? product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length 
-      : 0;
+    product.rating = calculateAverageRating(product.reviews);
 
     await product.save();
 

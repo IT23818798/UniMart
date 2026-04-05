@@ -1,32 +1,160 @@
 import React, { useState, useEffect } from 'react';
-import { FaTrash, FaDownload } from 'react-icons/fa';
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { FaTrash, FaEdit } from 'react-icons/fa';
 
-const BuyerOrders = ({ buyer, onOrderClick }) => {
-  const [orders, setOrders] = useState([]);
+const BuyerOrders = ({ buyer, onOrderClick, refreshKey, initialOrders = [] }) => {
+  const ORDERS_CACHE_MAP_KEY = 'unimart-buyer-orders-cache';
+  const ORDERS_CACHE_LATEST_KEY = 'unimart-buyer-orders-latest';
+  const resolveBuyerCacheKey = () => {
+    const buyerId = String(buyer?._id || buyer?.id || '').trim();
+    const buyerEmail = String(buyer?.email || '').trim().toLowerCase();
+
+    if (buyerId) return `id:${buyerId}`;
+    if (buyerEmail) return `email:${buyerEmail}`;
+
+    try {
+      const storedBuyerRaw = window.localStorage.getItem('buyerData');
+      if (!storedBuyerRaw) return '';
+
+      const storedBuyer = JSON.parse(storedBuyerRaw);
+      const storedId = String(storedBuyer?._id || storedBuyer?.id || '').trim();
+      const storedEmail = String(storedBuyer?.email || '').trim().toLowerCase();
+
+      if (storedId) return `id:${storedId}`;
+      if (storedEmail) return `email:${storedEmail}`;
+    } catch (error) {
+      console.error('Error resolving buyer cache key:', error);
+    }
+
+    return '';
+  };
+
+  const readCacheMap = () => {
+    try {
+      const raw = window.localStorage.getItem(ORDERS_CACHE_MAP_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      console.error('Error reading orders cache map:', error);
+      return {};
+    }
+  };
+
+  const writeCacheMap = (nextMap) => {
+    try {
+      window.localStorage.setItem(ORDERS_CACHE_MAP_KEY, JSON.stringify(nextMap));
+    } catch (error) {
+      console.error('Error writing orders cache map:', error);
+    }
+  };
+
+  const readCachedOrders = () => {
+    try {
+      const cacheKey = resolveBuyerCacheKey();
+      const cacheMap = readCacheMap();
+      const mapOrders = cacheKey && Array.isArray(cacheMap[cacheKey]) ? cacheMap[cacheKey] : [];
+
+      if (mapOrders.length > 0) {
+        return mapOrders;
+      }
+
+      const legacyBuyerId = String(buyer?._id || buyer?.id || '').trim();
+      if (!legacyBuyerId) return [];
+
+      const legacyRaw = window.localStorage.getItem(`unimart-buyer-orders-${legacyBuyerId}`);
+      if (legacyRaw) {
+        const legacyParsed = JSON.parse(legacyRaw);
+        if (Array.isArray(legacyParsed)) {
+          return legacyParsed;
+        }
+      }
+
+      const latestRaw = window.localStorage.getItem(ORDERS_CACHE_LATEST_KEY);
+      if (!latestRaw) return [];
+
+      const latestParsed = JSON.parse(latestRaw);
+      return Array.isArray(latestParsed) ? latestParsed : [];
+    } catch (error) {
+      console.error('Error reading cached buyer orders:', error);
+      return [];
+    }
+  };
+
+  const writeCachedOrders = (nextOrders) => {
+    try {
+      const cacheKey = resolveBuyerCacheKey();
+      if (!cacheKey) return;
+
+      const cacheMap = readCacheMap();
+      cacheMap[cacheKey] = Array.isArray(nextOrders) ? nextOrders : [];
+      writeCacheMap(cacheMap);
+      window.localStorage.setItem(ORDERS_CACHE_LATEST_KEY, JSON.stringify(nextOrders));
+
+      const legacyBuyerId = String(buyer?._id || buyer?.id || '').trim();
+      if (legacyBuyerId) {
+        window.localStorage.setItem(`unimart-buyer-orders-${legacyBuyerId}`, JSON.stringify(nextOrders));
+      }
+    } catch (error) {
+      console.error('Error caching buyer orders:', error);
+    }
+  };
+
+  const getOrderId = (order) => String(order?._id || order?.id || '');
+
+  const [orders, setOrders] = useState(() => {
+    const seededOrders = Array.isArray(initialOrders) ? initialOrders : [];
+    return seededOrders.length > 0 ? seededOrders : [];
+  });
   const [loading, setLoading] = useState(true);
   const [editingOrder, setEditingOrder] = useState(null);
   const [updatePhone, setUpdatePhone] = useState('');
   const [updateQuantity, setUpdateQuantity] = useState(1);
 
   useEffect(() => {
+    const seededOrders = Array.isArray(initialOrders) ? initialOrders : [];
+    if (seededOrders.length > 0) {
+      setOrders(seededOrders);
+      writeCachedOrders(seededOrders);
+      return;
+    }
+
+    const cached = readCachedOrders();
+    if (cached.length > 0) {
+      setOrders(cached);
+    }
+  }, [buyer, initialOrders]);
+
+  useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [refreshKey, buyer]);
 
   const fetchOrders = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/orders/buyer', {
+      setLoading(true);
+      const response = await fetch(`http://localhost:5000/api/orders/buyer?ts=${Date.now()}`, {
+        cache: 'no-store',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+          ...(localStorage.getItem('buyerToken')
+            ? { 'Authorization': `Bearer ${localStorage.getItem('buyerToken')}` }
+            : {})
         }
       });
       const data = await response.json();
       if (data.success) {
-        setOrders(data.data);
+        const backendOrders = Array.isArray(data.data) ? data.data : [];
+        setOrders(backendOrders);
+        writeCachedOrders(backendOrders);
+      } else {
+        const cachedOrders = readCachedOrders();
+        if (cachedOrders.length > 0) {
+          setOrders(cachedOrders);
+        }
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
+      const cachedOrders = readCachedOrders();
+      setOrders(cachedOrders);
     } finally {
       setLoading(false);
     }
@@ -37,13 +165,16 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
     try {
       const response = await fetch(`http://localhost:5000/api/orders/buyer/${orderId}`, {
         method: 'DELETE',
+        credentials: 'include',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
         }
       });
       const data = await response.json();
       if (data.success) {
-        setOrders(orders.filter(o => o._id !== orderId));
+        const nextOrders = orders.filter((o) => getOrderId(o) !== String(orderId));
+        setOrders(nextOrders);
+        writeCachedOrders(nextOrders);
       } else {
         alert(data.message || 'Failed to delete order');
       }
@@ -63,6 +194,7 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
     try {
       const response = await fetch(`http://localhost:5000/api/orders/buyer/${editingOrder._id}`, {
         method: 'PUT',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
@@ -71,7 +203,10 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
       });
       const data = await response.json();
       if (data.success) {
-        setOrders(orders.map(o => o._id === editingOrder._id ? data.data : o));
+        const editingId = getOrderId(editingOrder);
+        const nextOrders = orders.map((o) => getOrderId(o) === editingId ? data.data : o);
+        setOrders(nextOrders);
+        writeCachedOrders(nextOrders);
         setEditingOrder(null);
       } else {
         alert(data.message || 'Failed to update order');
@@ -79,74 +214,6 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
     } catch (error) {
       console.error('Error updating order:', error);
     }
-  };
-
-  const handleDownloadPDF = (order, e) => {
-    e.stopPropagation();
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFontSize(22);
-    doc.setTextColor(30, 64, 175); 
-    doc.text('UNIMART RECEIPT', 14, 20);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Order ID: ${order._id}`, 14, 30);
-    doc.text(`Date: ${new Date(order.createdAt || Date.now()).toLocaleDateString()}`, 14, 35);
-    
-    // Seller Info
-    doc.setFontSize(12);
-    doc.setTextColor(0);
-    doc.text('Seller Information', 14, 45);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Business Name: ${order.seller?.businessName || 'N/A'}`, 14, 52);
-    doc.text(`Contact: ${order.seller?.phone || 'N/A'}`, 14, 57);
-
-    // Delivery Info
-    doc.setFontSize(12);
-    doc.setTextColor(0);
-    doc.text('Delivery Details', 120, 45);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Method: ${order.deliveryMethod || 'Pickup'}`, 120, 52);
-    doc.text(`Phone: ${order.contactPhone || order.shippingAddress?.phone || 'N/A'}`, 120, 57);
-
-    // Table
-    const tableColumn = ["Item Description", "Price", "Quantity", "Total"];
-    const tableRows = [];
-
-    order.orderItems.forEach(item => {
-        tableRows.push([
-            item.title,
-            `Rs ${item.price.toFixed(2)}`,
-            item.quantity.toString(),
-            `Rs ${(item.price * item.quantity).toFixed(2)}`
-        ]);
-    });
-
-    autoTable(doc, {
-      startY: 70,
-      head: [tableColumn],
-      body: tableRows,
-      theme: 'striped',
-      headStyles: { fillColor: [37, 99, 235] }
-    });
-
-    const finalY = doc.lastAutoTable?.finalY || 100;
-    
-    // Total Amount Breakdown
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.text(`Total Amount: Rs ${order.totalAmount?.toFixed(2)}`, 14, finalY + 15);
-    
-    // Footer message
-    doc.setFontSize(10);
-    doc.setTextColor(150);
-    doc.text('Thank you for shopping at Unimart Student Marketplace!', 14, finalY + 30);
-
-    doc.save(`Unimart_Receipt_${order._id.substring(0,8)}.pdf`);
   };
 
   if (loading) return <div>Loading your orders...</div>;
@@ -168,13 +235,13 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 text-sm">
-            {orders.map(order => (
+            {orders.map((order, index) => (
               <tr 
-                key={order._id} 
+                key={getOrderId(order) || `idx-${index}`} 
                 className="hover:bg-gray-50 cursor-pointer transition-colors"
                 onClick={() => onOrderClick && onOrderClick(order)}
               >
-                <td className="py-3 px-4 font-mono text-xs">{order._id.substring(0, 8)}...</td>
+                <td className="py-3 px-4 font-mono text-xs">{(getOrderId(order) || 'unknown').substring(0, 8)}...</td>
                 <td className="py-3 px-4">{order.seller?.businessName || 'Unknown'}</td>
                 <td className="py-3 px-4">
                   {order.orderItems.map((item, i) => (
@@ -194,14 +261,12 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
                   </span>
                 </td>
                 <td className="py-4 px-5 flex items-center gap-3">
-                  <button onClick={(e) => handleDownloadPDF(order, e)} className="px-3 py-1.5 bg-green-50 text-green-600 border border-green-200 rounded-lg text-sm font-semibold hover:bg-green-100 transition-all flex items-center gap-1.5" title="Download Receipt PDF">
-                    <FaDownload /> PDF
+                  <button onClick={(e) => { e.stopPropagation(); handleEditClick(order); }} className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg text-sm font-semibold hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center gap-1.5" title="Edit Order Details">
+                    <FaEdit /> Edit
                   </button>
-                  {order.orderStatus !== 'cancelled' && (
                   <button onClick={(e) => { e.stopPropagation(); handleDelete(order._id); }} className="px-3 py-1.5 bg-white text-red-500 border border-red-100 rounded-lg text-sm font-semibold hover:bg-red-50 transition-all flex items-center gap-1.5" title="Cancel/Delete Order">
-                    <FaTrash /> Cancel
+                    <FaTrash /> Delete
                   </button>
-                  )}
                 </td>
               </tr>
             ))}

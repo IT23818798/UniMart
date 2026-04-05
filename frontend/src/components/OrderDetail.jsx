@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { FaArrowLeft, FaBox, FaStore, FaPhone, FaMapMarkerAlt, FaCalendarAlt, FaCheckCircle, FaClock, FaTimesCircle, FaStar, FaDownload } from 'react-icons/fa';
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { FaArrowLeft, FaBox, FaStore, FaPhone, FaMapMarkerAlt, FaCalendarAlt, FaCheckCircle, FaClock, FaTimesCircle, FaStar } from 'react-icons/fa';
 
-const OrderDetail = ({ order, onBack, onOrderUpdated, onChatWithSeller }) => {
+const OrderDetail = ({ order, onBack, onOrderUpdated }) => {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
@@ -22,6 +20,7 @@ const OrderDetail = ({ order, onBack, onOrderUpdated, onChatWithSeller }) => {
       
       const response = await fetch(`http://localhost:5000/api/seller/info/${order.seller._id}/reviews`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
@@ -73,73 +72,6 @@ const OrderDetail = ({ order, onBack, onOrderUpdated, onChatWithSeller }) => {
   const statusConfig = getStatusConfig(order.orderStatus);
   const StatusIcon = statusConfig.icon;
 
-  const generatePDF = () => {
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFontSize(22);
-    doc.setTextColor(30, 64, 175); // blue-800
-    doc.text('UNIMART RECEIPT', 14, 20);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Order ID: ${order._id}`, 14, 30);
-    doc.text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`, 14, 35);
-    
-    // Seller Info
-    doc.setFontSize(12);
-    doc.setTextColor(0);
-    doc.text('Seller Information', 14, 45);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Business Name: ${order.seller?.businessName || 'N/A'}`, 14, 52);
-    doc.text(`Contact: ${order.seller?.phone || 'N/A'}`, 14, 57);
-
-    // Delivery Info
-    doc.setFontSize(12);
-    doc.setTextColor(0);
-    doc.text('Delivery Details', 120, 45);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Method: ${order.deliveryMethod || 'Pickup'}`, 120, 52);
-    doc.text(`Phone: ${order.contactPhone || order.shippingAddress?.phone || 'N/A'}`, 120, 57);
-
-    // Table
-    const tableColumn = ["Item Description", "Price", "Quantity", "Total"];
-    const tableRows = [];
-
-    order.orderItems.forEach(item => {
-        tableRows.push([
-            item.title,
-            `Rs ${item.price.toFixed(2)}`,
-            item.quantity.toString(),
-            `Rs ${(item.price * item.quantity).toFixed(2)}`
-        ]);
-    });
-
-    autoTable(doc, {
-      startY: 70,
-      head: [tableColumn],
-      body: tableRows,
-      theme: 'striped',
-      headStyles: { fillColor: [37, 99, 235] }
-    });
-
-    const finalY = doc.lastAutoTable?.finalY || 100;
-    
-    // Total Amount Breakdown
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.text(`Total Amount: Rs ${order.totalAmount?.toFixed(2)}`, 14, finalY + 15);
-    
-    // Footer message
-    doc.setFontSize(10);
-    doc.setTextColor(150);
-    doc.text('Thank you for shopping at Unimart Student Marketplace!', 14, finalY + 30);
-
-    doc.save(`Unimart_Receipt_${order._id.substring(0,8)}.pdf`);
-  };
-
   return (
     <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100/50 p-8 max-w-5xl mx-auto transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
       
@@ -162,27 +94,6 @@ const OrderDetail = ({ order, onBack, onOrderUpdated, onChatWithSeller }) => {
           <p className="text-gray-500 mt-2 font-mono bg-gray-50 inline-block px-3 py-1 rounded-md border border-gray-200 text-sm">
             Order ID: {order._id}
           </p>
-        </div>
-
-        <div className="mt-6 sm:mt-0 flex flex-wrap sm:justify-end gap-3">
-          <button 
-            onClick={() => {
-              const firstItem = order.orderItems?.[0];
-              const sellerId = order.seller?._id || order.seller;
-              if (onChatWithSeller) {
-                onChatWithSeller(sellerId, firstItem?.product || firstItem?._id);
-              }
-            }}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"
-          >
-            <FaClock /> Chat with Seller
-          </button>
-          <button 
-            onClick={generatePDF}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"
-          >
-            <FaDownload /> Download Receipt
-          </button>
         </div>
       </div>
 

@@ -2265,10 +2265,18 @@ const AdminDashboard = ({ admin, onLogout }) => {
         credentials: 'include',
       });
       localStorage.removeItem('adminToken');
+      
+      // Clear admin-specific search and filter data from localStorage
+      localStorage.removeItem('unimart-admin-filters');
+      
       onLogout();
     } catch (error) {
       console.error('Logout error:', error);
       localStorage.removeItem('adminToken');
+      
+      // Clear admin-specific search and filter data from localStorage
+      localStorage.removeItem('unimart-admin-filters');
+      
       onLogout();
     }
   };

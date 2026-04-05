@@ -1,5 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import './BuyerDashboard.css';
+import BuyerProducts from './BuyerProducts';
+import BuyerOrders from './BuyerOrders';
+import ProductDetail from './ProductDetail';
+import OrderDetail from './OrderDetail';
 import UnimartLogo from './images/Unimart logo.png';
 import {
   FaUser,
@@ -31,7 +35,9 @@ import {
   FaTwitter,
   FaLinkedin,
   FaInstagram,
-  FaArrowUp
+  FaArrowUp,
+  FaEdit,
+  FaTrash
 } from 'react-icons/fa';
 
 const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
@@ -40,6 +46,49 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   const [loading, setLoading] = useState(!initialBuyer);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [viewingProduct, setViewingProduct] = useState(null);
+  const [viewingOrder, setViewingOrder] = useState(null);
+  const [checkoutPhone, setCheckoutPhone] = useState('');
+  const [orderQuantity, setOrderQuantity] = useState(1);
+  const [buyerReviews, setBuyerReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState('');
+  const [reviewSearchTerm, setReviewSearchTerm] = useState('');
+  const deferredReviewSearchTerm = useDeferredValue(reviewSearchTerm);
+  const [ordersRefreshKey, setOrdersRefreshKey] = useState(0);
+  const [ordersCache, setOrdersCache] = useState([]);
+
+  const buyerReviewAverage = useMemo(() => {
+    const ratedReviews = buyerReviews.filter((review) => Number(review.rating || 0) > 0);
+
+    if (ratedReviews.length === 0) {
+      return 0;
+    }
+
+    return ratedReviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / ratedReviews.length;
+  }, [buyerReviews]);
+
+  const renderRatingStars = (rating, sizeClass = 'h-3.5 w-3.5') => {
+    const value = Math.max(0, Math.min(5, Number(rating) || 0));
+
+    return (
+      <div className="inline-flex items-center gap-0.5">
+        {Array.from({ length: 5 }).map((_, index) => {
+          const fill = Math.max(0, Math.min(1, value - index));
+
+          return (
+            <span key={index} className="relative inline-flex">
+              <FaStar className={`${sizeClass} text-gray-300`} />
+              <span className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
+                <FaStar className={`${sizeClass} text-yellow-400`} />
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (initialBuyer) {
@@ -49,6 +98,18 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
       fetchBuyerData();
     }
   }, [initialBuyer]);
+
+  useEffect(() => {
+    if (activeTab === 'reviews' && buyer) {
+      fetchBuyerReviews();
+    }
+  }, [activeTab, buyer]);
+
+  useEffect(() => {
+    if (activeTab === 'orders') {
+      setOrdersRefreshKey((value) => value + 1);
+    }
+  }, [activeTab]);
 
   const fetchBuyerData = async () => {
     try {
@@ -110,6 +171,10 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Clear buyer-specific search and filter data from localStorage
+      localStorage.removeItem('unimart-product-search-history');
+      localStorage.removeItem('unimart-saved-product-filters');
+      
       if (onLogout) {
         onLogout();
       }
@@ -118,6 +183,67 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
   const handleLogoError = (e) => {
     e.target.style.display = 'none';
+  };
+
+  const fetchBuyerReviews = async () => {
+    try {
+      setReviewsLoading(true);
+      setReviewsError('');
+
+      const buyerId = String(buyer?._id || buyer?.id || '');
+      const buyerName = `${buyer?.firstName || ''} ${buyer?.lastName || ''}`.trim().toLowerCase();
+
+      if (!buyerId && !buyerName) {
+        setBuyerReviews([]);
+        setReviewsError('Could not identify buyer account to load reviews.');
+        return;
+      }
+
+      const response = await fetch('http://localhost:5000/api/products');
+      const data = await response.json();
+
+      if (!data.success || !Array.isArray(data.data)) {
+        throw new Error('Failed to load products for reviews.');
+      }
+
+      const reviews = data.data.flatMap((product) => {
+        const productReviews = Array.isArray(product.reviews) ? product.reviews : [];
+
+        return productReviews
+          .filter((review) => {
+            const reviewUserId = typeof review.user === 'object'
+              ? String(review.user?._id || review.user?.id || '')
+              : String(review.user || '');
+            const reviewName = String(review.name || '').trim().toLowerCase();
+
+            return (buyerId && reviewUserId === buyerId) || (buyerName && reviewName === buyerName);
+          })
+          .map((review) => ({
+            id: review._id || `${product._id}-${review.createdAt || review.comment || 'review'}`,
+            reviewId: review._id || null,
+            rating: Number(review.rating || 0),
+            comment: review.comment || '',
+            createdAt: review.createdAt || null,
+            product: {
+              _id: product._id,
+              title: product.title,
+              image: Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : '',
+              price: product.price,
+              seller: product.seller,
+              category: product.category,
+            },
+          }));
+      });
+
+      reviews.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      setBuyerReviews(reviews);
+    } catch (error) {
+      console.error('Error loading buyer reviews:', error);
+      setReviewsError('Failed to load your reviews. Please try again.');
+      setBuyerReviews([]);
+    } finally {
+      setReviewsLoading(false);
+    }
   };
 
   const getLoyaltyLevelColor = (level) => {
@@ -135,6 +261,103 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
       case 'vip': return 'text-purple-600 bg-purple-100';
       case 'premium': return 'text-blue-600 bg-blue-100';
       default: return 'text-green-600 bg-green-100';
+    }
+  };
+
+  const filteredBuyerReviews = useMemo(() => {
+    const query = deferredReviewSearchTerm.trim().toLowerCase();
+    if (!query) return buyerReviews;
+
+    return buyerReviews.filter((review) => {
+      const searchable = [
+        review.product?.title,
+        review.product?.category,
+        review.product?.seller?.businessName,
+        review.product?.seller?.firstName,
+        review.product?.seller?.lastName,
+        review.comment,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return searchable.includes(query);
+    });
+  }, [buyerReviews, deferredReviewSearchTerm]);
+
+  const handleEditReviewFromList = async (review) => {
+    if (!review.reviewId) {
+      alert('This review cannot be edited right now.');
+      return;
+    }
+
+    const currentComment = review.comment || '';
+    const nextComment = window.prompt('Edit your review comment:', currentComment);
+    if (nextComment === null) return;
+
+    const nextRatingInput = window.prompt('Update rating (1 to 5):', String(Math.round(review.rating || 5)));
+    if (nextRatingInput === null) return;
+
+    const parsedRating = Number(nextRatingInput);
+    const rating = Math.min(5, Math.max(1, parsedRating));
+
+    if (!Number.isFinite(rating)) {
+      alert('Please enter a valid rating between 1 and 5.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/products/${review.product._id}/reviews/${review.reviewId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+        },
+        body: JSON.stringify({
+          rating,
+          comment: nextComment.trim()
+        })
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        alert(data.message || 'Failed to update review.');
+        return;
+      }
+
+      fetchBuyerReviews();
+    } catch (error) {
+      console.error('Error updating review from list:', error);
+      alert('Failed to connect to server.');
+    }
+  };
+
+  const handleDeleteReviewFromList = async (review) => {
+    if (!review.reviewId) {
+      alert('This review cannot be deleted right now.');
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to delete this review?')) return;
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/products/${review.product._id}/reviews/${review.reviewId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+        }
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        alert(data.message || 'Failed to delete review.');
+        return;
+      }
+
+      fetchBuyerReviews();
+    } catch (error) {
+      console.error('Error deleting review from list:', error);
+      alert('Failed to connect to server.');
     }
   };
 
@@ -169,6 +392,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
   const sidebarItems = [
     { id: 'overview', label: 'Overview', icon: FaChartBar },
+    { id: 'products', label: 'Browse Products', icon: FaSearch },
     { id: 'orders', label: 'My Orders', icon: FaShoppingCart },
     { id: 'wishlist', label: 'Wishlist', icon: FaHeart },
     { id: 'addresses', label: 'Addresses', icon: FaMapMarkerAlt },
@@ -336,16 +560,6 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
                 Welcome back, {buyer?.firstName}! Discover fresh products from local sellers.
               </p>
             </div>
-            <div className="flex items-center space-x-4">
-              <button className="relative p-2 text-gray-400 hover:text-gray-600">
-                <FaBell className="h-6 w-6" />
-                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-              </button>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                <FaSearch className="inline mr-2 h-4 w-4" />
-                Browse Products
-              </button>
-            </div>
           </div>
         </header>
 
@@ -367,7 +581,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
                   value={dashboardStats.purchaseMetrics.totalSpent}
                   icon={FaDollarSign}
                   color="bg-green-500"
-                  prefix="$"
+                  prefix="Rs "
                   change={15}
                 />
                 <StatCard
@@ -405,11 +619,11 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Average Order Value</span>
-                      <span className="font-semibold">${dashboardStats.purchaseMetrics.averageOrderValue}</span>
+                      <span className="font-semibold">Rs {dashboardStats.purchaseMetrics.averageOrderValue}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Monthly Spending</span>
-                      <span className="font-semibold">${dashboardStats.purchaseMetrics.monthlySpending}</span>
+                      <span className="font-semibold">Rs {dashboardStats.purchaseMetrics.monthlySpending}</span>
                     </div>
                   </div>
                 </div>
@@ -448,7 +662,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
               </div>
 
               {/* Quick Actions */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 premium-reviews-header">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {[
@@ -495,8 +709,232 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
             </div>
           )}
 
+          {/* Dynamic Tabs */}
+          {activeTab === 'products' && (
+            <BuyerProducts buyer={buyer} onAddToCart={(product) => {
+              setSelectedProduct(product);
+              setOrderQuantity(1);
+            }} onProductClick={(product) => {
+              setViewingProduct(product);
+              setActiveTab('product_detail');
+            }} />
+          )}
+
+          {activeTab === 'product_detail' && viewingProduct && (
+            <ProductDetail
+              productId={viewingProduct._id}
+              buyer={buyer}
+              onBack={() => setActiveTab('products')}
+              onAddToCart={(product) => {
+                setSelectedProduct(product);
+                setOrderQuantity(1);
+              }}
+            />
+          )}
+
+          {activeTab === 'orders' && (
+            <BuyerOrders 
+              key={`buyer-orders-${ordersRefreshKey}`}
+              buyer={buyer}
+              initialOrders={ordersCache}
+              refreshKey={ordersRefreshKey}
+              onOrderClick={(order) => {
+                setViewingOrder(order);
+                setActiveTab('order_detail');
+              }}
+            />
+          )}
+
+          {activeTab === 'order_detail' && viewingOrder && (
+            <OrderDetail
+              order={viewingOrder}
+              onBack={() => setActiveTab('orders')}
+              onOrderUpdated={setViewingOrder}
+            />
+          )}
+
+          {activeTab === 'reviews' && (
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900">My Product Reviews</h3>
+                      <p className="text-gray-600 text-sm">Track the feedback you have shared with sellers.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={fetchBuyerReviews}
+                      className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                    >
+                      Refresh Reviews
+                    </button>
+                  </div>
+
+                  <div className="max-w-md">
+                    <input
+                      type="text"
+                      value={reviewSearchTerm}
+                      onChange={(e) => setReviewSearchTerm(e.target.value)}
+                      placeholder="Search reviews by product, seller, or comment..."
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {reviewsLoading && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-600">
+                  Loading your reviews...
+                </div>
+              )}
+
+              {!reviewsLoading && reviewsError && (
+                <div className="bg-white rounded-xl shadow-sm border border-red-200 p-6 text-center">
+                  <p className="text-red-600 mb-4">{reviewsError}</p>
+                  <button
+                    type="button"
+                    onClick={fetchBuyerReviews}
+                    className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
+
+              {!reviewsLoading && !reviewsError && buyerReviews.length === 0 && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+                  <div className="text-5xl mb-3">⭐</div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">No reviews yet</h4>
+                  <p className="text-gray-600 mb-4">You can review products after placing orders.</p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('products')}
+                    className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Browse Products
+                  </button>
+                </div>
+              )}
+
+              {!reviewsLoading && !reviewsError && buyerReviews.length > 0 && (
+                <>
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-6 py-4 flex items-center justify-between">
+                    <p className="text-sm text-gray-600">
+                      Showing: <span className="font-semibold text-gray-900">{filteredBuyerReviews.length}</span>
+                      <span className="text-gray-400"> / {buyerReviews.length}</span>
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Avg rating: <span className="font-semibold text-gray-900">
+                        {buyerReviewAverage > 0 ? `${buyerReviewAverage.toFixed(1)} / 5` : 'No rate'}
+                      </span>
+                    </p>
+                  </div>
+
+                  {filteredBuyerReviews.length === 0 ? (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">No matching reviews</h4>
+                      <p className="text-gray-600 mb-4">Try a different search keyword.</p>
+                      <button
+                        type="button"
+                        onClick={() => setReviewSearchTerm('')}
+                        className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Clear Search
+                      </button>
+                    </div>
+                  ) : (
+                  <div className="space-y-4">
+                    {filteredBuyerReviews.map((review) => (
+                      <div key={review.id} className="premium-review-card">
+                        <div className="premium-review-content">
+                          <div className="premium-review-top">
+                            <img
+                              src={review.product.image || 'https://via.placeholder.com/80x80?text=No+Image'}
+                              alt={review.product.title}
+                              className="premium-review-image"
+                              loading="lazy"
+                            />
+                            <div className="flex-1 min-w-0 premium-review-main">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setViewingProduct(review.product);
+                                  setActiveTab('product_detail');
+                                }}
+                                className="premium-review-title"
+                                title={review.product.title}
+                              >
+                                {review.product.title}
+                              </button>
+                              {(review.product?.seller?.businessName || review.product?.seller?.firstName || review.product?.seller?.lastName) && (
+                                <p className="premium-review-seller">
+                                  Seller: {review.product?.seller?.businessName || `${review.product?.seller?.firstName || ''} ${review.product?.seller?.lastName || ''}`.trim()}
+                                </p>
+                              )}
+                              <p className="premium-review-price">Rs {review.product.price}</p>
+                              <div className="premium-review-stars-row">
+                                {renderRatingStars(review.rating)}
+                                <span className="premium-rating-chip">
+                                  {Number(review.rating || 0) > 0 ? `${Number(review.rating || 0).toFixed(1)} / 5` : 'No rate'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="premium-review-message-pane">
+                            <p className="premium-review-comment">
+                              {review.comment || 'No comment provided.'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="premium-review-footer">
+                          <span className="premium-review-date">
+                            {review.createdAt ? `Reviewed on ${new Date(review.createdAt).toLocaleDateString()}` : 'Date unavailable'}
+                          </span>
+                          <div className="premium-review-actions">
+                            <button
+                              type="button"
+                              className="premium-show-product-btn"
+                              onClick={() => {
+                                setViewingProduct(review.product);
+                                setActiveTab('product_detail');
+                              }}
+                            >
+                              Show Product
+                            </button>
+                            <button
+                              type="button"
+                              className="premium-icon-btn premium-icon-btn-edit"
+                              onClick={() => handleEditReviewFromList(review)}
+                              title="Edit review"
+                              aria-label="Edit review"
+                            >
+                              <FaEdit className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              className="premium-icon-btn premium-icon-btn-delete"
+                              onClick={() => handleDeleteReviewFromList(review)}
+                              title="Delete review"
+                              aria-label="Delete review"
+                            >
+                              <FaTrash className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           {/* Other tabs content placeholder */}
-          {activeTab !== 'overview' && (
+          {activeTab !== 'overview' && activeTab !== 'products' && activeTab !== 'orders' && activeTab !== 'product_detail' && activeTab !== 'order_detail' && activeTab !== 'reviews' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
               <div className="text-gray-400 text-6xl mb-4">🚧</div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -515,6 +953,135 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
           )}
         </main>
       </div>
+
+      {/* Checkout Modal */}
+      {selectedProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Complete Your Order</h2>
+            <div className="mb-4 flex items-center gap-4">
+               <img src={selectedProduct.images[0] || 'https://via.placeholder.com/50'} alt={selectedProduct.title} className="w-16 h-16 object-cover rounded" />
+               <div>
+                  <h3 className="font-semibold text-gray-800">{selectedProduct.title}</h3>
+                  <p className="text-blue-600 font-bold">Rs {selectedProduct.price}</p>
+               </div>
+            </div>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                const response = await fetch('http://localhost:5000/api/orders/buyer', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...(localStorage.getItem('buyerToken')
+                      ? { 'Authorization': `Bearer ${localStorage.getItem('buyerToken')}` }
+                      : {})
+                  },
+                  body: JSON.stringify({
+                    orderItems: [{
+                      product: selectedProduct._id,
+                      title: selectedProduct.title,
+                      image: selectedProduct.images[0] || '',
+                      price: selectedProduct.price,
+                      quantity: orderQuantity
+                    }],
+                    contactPhone: checkoutPhone
+                  })
+                });
+                const data = await response.json();
+                if (data.success) {
+                  alert('Order placed successfully!');
+
+                  let refreshedOrders = [];
+                  try {
+                    const ordersResponse = await fetch(`http://localhost:5000/api/orders/buyer?ts=${Date.now()}`, {
+                      cache: 'no-store',
+                      credentials: 'include',
+                      headers: {
+                        ...(localStorage.getItem('buyerToken')
+                          ? { 'Authorization': `Bearer ${localStorage.getItem('buyerToken')}` }
+                          : {})
+                      }
+                    });
+
+                    if (ordersResponse.ok) {
+                      const ordersData = await ordersResponse.json();
+                      if (ordersData.success && Array.isArray(ordersData.data)) {
+                        refreshedOrders = ordersData.data;
+                      }
+                    }
+                  } catch (ordersError) {
+                    console.error('Error refreshing buyer orders after checkout:', ordersError);
+                  }
+
+                  if (refreshedOrders.length > 0) {
+                    setOrdersCache(refreshedOrders);
+                  } else if (data.data) {
+                    setOrdersCache((currentOrders) => {
+                      const getOrderId = (order) => String(order?._id || order?.id || '');
+                      const combined = [data.data, ...currentOrders];
+                      return combined.filter((order, index, array) => {
+                        const currentId = getOrderId(order);
+                        if (!currentId) return index === array.indexOf(order);
+                        return array.findIndex((item) => getOrderId(item) === currentId) === index;
+                      });
+                    });
+                  }
+
+                  setSelectedProduct(null);
+                  setOrdersRefreshKey((value) => value + 1);
+                  setActiveTab('orders'); // Jump to orders view
+                } else {
+                  alert('Error placing order: ' + data.message);
+                }
+              } catch (error) {
+                console.error('Order error:', error);
+                alert('Something went wrong placing the order');
+              }
+            }}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Quantity (Max: {selectedProduct.stock})</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  max={selectedProduct.stock} 
+                  value={orderQuantity} 
+                  onChange={(e) => setOrderQuantity(parseInt(e.target.value) || 1)}
+                  className="w-full border p-2 rounded" 
+                  required 
+                />
+              </div>
+              <h4 className="font-semibold mb-2">Pickup Details</h4>
+              <div className="space-y-4 mb-6 text-sm">
+                <div className="bg-blue-50 p-3 rounded-md text-blue-800 border border-blue-200">
+                  <p><strong>Note:</strong> This order is for in-person pickup. You will collect the item directly from the seller.</p>
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-medium mb-1">Contact Phone Number</label>
+                  <input 
+                    type="tel" 
+                    placeholder="Enter your phone number" 
+                    value={checkoutPhone} 
+                    onChange={e => setCheckoutPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                    pattern="\d{10}"
+                    title="Phone number must be exactly 10 digits"
+                    className="w-full border p-2 rounded" 
+                    autoComplete="off"
+                    required 
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                 <button type="button" onClick={() => setSelectedProduct(null)} className="px-4 py-2 text-gray-600 bg-gray-100 rounded hover:bg-gray-200">Cancel</button>
+                 <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700">Confirm Order (Rs {(selectedProduct.price * orderQuantity).toFixed(2)})</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

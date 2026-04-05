@@ -3,7 +3,6 @@ import './SellerDashboard.css';
 import SellerProducts from './SellerProducts';
 import SellerOrders from './SellerOrders';
 import SellerReviews from './SellerReviews';
-import ChatPage from './ChatPage';
 import {
   FaUser,
   FaChartLine,
@@ -23,8 +22,7 @@ import {
   FaWarehouse,
   FaBell,
   FaCertificate,
-  FaGlobe,
-  FaEnvelope
+  FaGlobe
 } from 'react-icons/fa';
 
 const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
@@ -33,6 +31,7 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
   const [loading, setLoading] = useState(!initialSeller);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [ordersRefreshKey, setOrdersRefreshKey] = useState(0);
 
   useEffect(() => {
     if (initialSeller) {
@@ -42,6 +41,12 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
       fetchSellerData();
     }
   }, [initialSeller]);
+
+  useEffect(() => {
+    if (activeTab === 'orders') {
+      setOrdersRefreshKey((value) => value + 1);
+    }
+  }, [activeTab]);
 
   const fetchSellerData = async () => {
     try {
@@ -103,6 +108,9 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Clear seller-specific search and filter data from localStorage
+      localStorage.removeItem('unimart-seller-filters');
+      
       if (onLogout) {
         onLogout();
       }
@@ -161,7 +169,6 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
     { id: 'overview', label: 'Overview', icon: FaChartLine },
     { id: 'products', label: 'Products', icon: FaBox },
     { id: 'orders', label: 'Orders', icon: FaShoppingCart },
-    { id: 'messages', label: 'Messages', icon: FaEnvelope },
     { id: 'reviews', label: 'Reviews', icon: FaStar },
     { id: 'customers', label: 'Customers', icon: FaUsers },
     { id: 'analytics', label: 'Analytics', icon: FaChartBar },
@@ -421,7 +428,11 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
           )}
 
           {activeTab === 'orders' && (
-            <SellerOrders seller={seller} />
+            <SellerOrders
+              key={`seller-orders-${ordersRefreshKey}`}
+              seller={seller}
+              refreshKey={ordersRefreshKey}
+            />
           )}
 
           {activeTab === 'reviews' && (
@@ -506,11 +517,23 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
             </div>
           )}
 
-          {activeTab === 'messages' && (
-            <ChatPage 
-              currentUser={seller} 
-              userType="seller" 
-            />
+          {/* Other tabs content placeholder */}
+          {activeTab !== 'overview' && activeTab !== 'products' && activeTab !== 'orders' && activeTab !== 'reviews' && activeTab !== 'profile' && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+              <div className="text-gray-400 text-6xl mb-4">🚧</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                {sidebarItems.find(item => item.id === activeTab)?.label} Section
+              </h3>
+              <p className="text-gray-600 mb-4">
+                This section is under development. More features coming soon!
+              </p>
+              <button
+                onClick={() => setActiveTab('overview')}
+                className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Back to Overview
+              </button>
+            </div>
           )}
         </main>
       </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { FaStar, FaArrowLeft, FaShoppingCart, FaUserCircle, FaComment } from 'react-icons/fa';
+import { FaStar, FaArrowLeft, FaShoppingCart, FaUserCircle, FaEdit, FaTrash } from 'react-icons/fa';
 
-const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller }) => {
+const ProductDetail = ({ productId, buyer, onBack, onAddToCart }) => {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reviewRating, setReviewRating] = useState(5);
@@ -118,13 +118,40 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
 
   const startEditing = (review) => {
     setEditingReviewId(review._id);
-    setReviewRating(review.rating);
+    setReviewRating(Number(review.rating || 0));
     setReviewComment(review.comment);
     window.scrollTo({ top: document.body.scrollHeight / 2, behavior: 'smooth' });
   };
 
+  const renderStars = (rating, sizeClass = 'text-lg') => {
+    const value = Math.max(0, Math.min(5, Number(rating) || 0));
+
+    return (
+      <div className="inline-flex items-center gap-0.5">
+        {Array.from({ length: 5 }).map((_, index) => {
+          const fill = Math.max(0, Math.min(1, value - index));
+
+          return (
+            <span key={index} className="relative inline-flex">
+              <FaStar className={`${sizeClass} text-gray-300`} />
+              <span className="absolute inset-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
+                <FaStar className={`${sizeClass} text-yellow-400`} />
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
   if (loading) return <div className="p-8 text-center text-gray-500 pb-40">Loading product details...</div>;
   if (!product) return <div className="p-8 text-center text-red-500 pb-40">Product not found</div>;
+
+  const sellerName = [product.seller?.firstName, product.seller?.lastName].filter(Boolean).join(' ')
+    || product.seller?.fullName
+    || product.seller?.businessName
+    || 'Unknown';
+  const productRating = Number(product.rating || 0);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 max-w-5xl mx-auto mb-20">
@@ -155,12 +182,13 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
           <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.title}</h1>
           
           <div className="flex items-center mb-4 space-x-4">
-            <div className="flex items-center text-yellow-500">
-              {[...Array(5)].map((_, i) => (
-                <FaStar key={i} className={i < (product.rating || 0) ? 'text-yellow-400' : 'text-gray-300'} />
-              ))}
-              <span className="ml-2 text-gray-600 text-sm">
-                ({product.numOfReviews || 0} reviews)
+            <div className="flex flex-col items-start text-yellow-500">
+              {renderStars(productRating)}
+              <span className="mt-1 text-sm leading-tight">
+                <span className="block text-gray-600">
+                  ({productRating > 0 ? `${productRating.toFixed(1)} / 5` : 'No rate'})
+                </span>
+                <span className="block text-gray-400">{product.numOfReviews || 0} reviews</span>
               </span>
             </div>
             <span className="text-gray-400">|</span>
@@ -168,7 +196,7 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
               Seller: <span 
                 className={`font-semibold ${product.seller?._id ? 'text-blue-600 cursor-pointer hover:underline' : 'text-gray-800'}`}
                 onClick={() => product.seller?._id && fetchSellerDetails(product.seller._id)}
-              >{product.seller?.businessName || 'Unknown'}</span>
+              >{sellerName}</span>
             </span>
           </div>
 
@@ -194,16 +222,6 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
               >
                 <FaShoppingCart className="mr-2" /> Buy Now
               </button>
-            <button
-                onClick={() => {
-                  if (onChatWithSeller) {
-                    onChatWithSeller(product.seller._id || product.seller, product._id);
-                  }
-                }}
-                className="flex items-center justify-center py-3 px-6 rounded-lg bg-green-50 text-green-700 font-semibold border border-green-200 hover:bg-green-100 transition-all shadow-sm"
-              >
-                <FaComment className="mr-2" /> Chat with Seller
-              </button>
             </div>
           </div>
         </div>
@@ -222,20 +240,20 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
               <form onSubmit={submitReview}>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-wrap gap-2">
                     {[1, 2, 3, 4, 5].map(num => (
                       <button
                         key={num}
                         type="button"
                         onClick={() => setReviewRating(num)}
-                        className="text-2xl focus:outline-none transition-transform hover:scale-110"
+                        className="p-0 bg-transparent border-0 shadow-none focus:outline-none hover:scale-110 transition-transform"
                       >
-                        <FaStar className={num <= reviewRating ? 'text-yellow-400' : 'text-gray-300'} />
+                        <FaStar className={reviewRating >= num ? 'text-yellow-400 text-lg' : 'text-gray-300 text-lg'} />
                       </button>
                     ))}
                   </div>
                 </div>
-                
+
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Your Review</label>
                   <textarea
@@ -306,25 +324,30 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
                       </div>
                     </div>
                     <div className="flex items-center gap-4 ml-4">
-                      <div className="flex text-yellow-400">
-                        {[...Array(5)].map((_, i) => (
-                          <FaStar key={i} className={i < review.rating ? 'text-yellow-400' : 'text-gray-200'} />
-                        ))}
+                      <div className="flex items-center gap-2">
+                        {renderStars(review.rating, 'text-sm')}
+                        <span className="text-xs font-medium text-gray-500">
+                          {Number(review.rating || 0) > 0 ? `${Number(review.rating || 0).toFixed(1)} / 5` : 'No rate'}
+                        </span>
                       </div>
 
                       {((review.user?._id || review.user) === (buyer?._id || buyer?.id)) && (
                         <div className="flex items-center gap-3 border-l border-gray-200 pl-4">
                           <button 
                             onClick={() => startEditing(review)} 
-                            className="text-blue-500 hover:text-blue-700 text-xs font-bold uppercase tracking-wider transition-colors"
+                            className="w-8 h-8 rounded-md border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 transition-colors flex items-center justify-center"
+                            title="Edit review"
+                            aria-label="Edit review"
                           >
-                            Edit
+                            <FaEdit className="text-sm" />
                           </button>
                           <button 
                             onClick={() => deleteReview(review._id)} 
-                            className="text-red-500 hover:text-red-700 text-xs font-bold uppercase tracking-wider transition-colors"
+                            className="w-8 h-8 rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 transition-colors flex items-center justify-center"
+                            title="Delete review"
+                            aria-label="Delete review"
                           >
-                            Delete
+                            <FaTrash className="text-sm" />
                           </button>
                         </div>
                       )}
@@ -354,19 +377,42 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
               ) : sellerDetails ? (
                 <>
                   <div className="flex items-start justify-between border-b border-gray-100 pb-6 mb-6">
-                    <div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
+                        {sellerDetails.profileImage ? (
+                          <img
+                            src={sellerDetails.profileImage}
+                            alt={sellerDetails.fullName || sellerDetails.businessName || 'Seller'}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-xl font-bold text-gray-500 uppercase">
+                            {(sellerDetails.fullName || sellerDetails.businessName || 'S').charAt(0)}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-gray-500 mb-1">Seller Profile</div>
                       <h2 className="text-3xl font-extrabold text-gray-900 mb-3">{sellerDetails.businessName}</h2>
+                        <div className="text-sm text-gray-600 mb-3">
+                          {sellerDetails.fullName || [sellerDetails.firstName, sellerDetails.lastName].filter(Boolean).join(' ') || 'Unknown Seller'}
+                        </div>
                       <div className="flex items-center gap-3">
                         <span className={`px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider ${
                           sellerDetails.isVerified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                         }`}>
                           {sellerDetails.isVerified ? 'Verified Seller' : 'Unverified'}
                         </span>
-                        <div className="flex items-center text-yellow-500 text-sm bg-yellow-50 px-2 py-1 rounded-md border border-yellow-100">
-                          <FaStar className="mr-1" /> 
-                          <span className="font-bold text-gray-800 mr-1">{sellerDetails.ratings?.average?.toFixed(1) || 0}</span>
-                          <span className="text-gray-500">({sellerDetails.ratings?.totalReviews || 0} reviews)</span>
+                        <div className="flex flex-col items-start text-sm bg-yellow-50 px-3 py-2 rounded-md border border-yellow-100">
+                          <div className="text-yellow-500">
+                            {renderStars(Number(sellerDetails.ratings?.average || 0), 'text-sm')}
+                          </div>
+                          <span className="text-gray-700 font-semibold">
+                            ({Number(sellerDetails.ratings?.average || 0).toFixed(1)} / 5)
+                          </span>
+                          <span className="text-gray-500">{sellerDetails.ratings?.totalReviews || 0} reviews</span>
                         </div>
+                      </div>
                       </div>
                     </div>
                   </div>
@@ -374,20 +420,20 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8 bg-gray-50 p-5 rounded-xl text-sm border border-gray-100">
                     <div>
                       <span className="text-gray-500 block mb-1 text-xs font-semibold uppercase tracking-wider">Business Type</span>
-                      <span className="font-bold text-gray-900 capitalize">{sellerDetails.businessType?.replace('_', ' ')}</span>
+                      <span className="font-bold text-gray-900 capitalize">{sellerDetails.businessTypeLabel || sellerDetails.businessType?.replace('_', ' ')}</span>
                     </div>
                     <div>
                       <span className="text-gray-500 block mb-1 text-xs font-semibold uppercase tracking-wider">Location</span>
-                      <span className="font-bold text-gray-900">{sellerDetails.address || 'Not specified'}</span>
+                      <span className="font-bold text-gray-900">{sellerDetails.locationText || sellerDetails.address || 'Not specified'}</span>
                     </div>
                     <div>
                       <span className="text-gray-500 block mb-1 text-xs font-semibold uppercase tracking-wider">Products</span>
-                      <span className="font-bold text-gray-900">{sellerDetails.totalProducts || 0} listings</span>
+                      <span className="font-bold text-gray-900">{sellerDetails.totalProducts ?? 0} listings</span>
                     </div>
                     <div>
                       <span className="text-gray-500 block mb-1 text-xs font-semibold uppercase tracking-wider">Joined</span>
                       <span className="font-bold text-gray-900">
-                        {new Date(sellerDetails.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                        {new Date(sellerDetails.memberSince || sellerDetails.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                       </span>
                     </div>
                   </div>
@@ -415,10 +461,11 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
                                <span className="font-bold text-gray-800">{review.buyerName}</span>
                             </div>
                             <div className="flex items-center gap-3">
-                               <div className="flex text-yellow-400 text-sm">
-                                 {[...Array(5)].map((_, i) => (
-                                   <FaStar key={i} className={i < review.rating ? 'text-yellow-400' : 'text-gray-200'} />
-                                 ))}
+                               <div className="flex items-center gap-2 text-sm">
+                                 {renderStars(review.rating, 'text-sm')}
+                                 <span className="text-xs font-medium text-gray-500">
+                                   {Number(review.rating || 0) > 0 ? `${Number(review.rating || 0).toFixed(1)} / 5` : 'No rate'}
+                                 </span>
                                </div>
                                <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded">
                                  {new Date(review.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}

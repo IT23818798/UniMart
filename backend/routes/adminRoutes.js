@@ -11,24 +11,6 @@ const {
   getAllAdmins
 } = require('../controllers/adminController');
 
-const {
-  getAdminProducts,
-  getAdminProductById,
-  createAdminProduct,
-  updateAdminProduct,
-  deleteAdminProduct,
-  getProductStatsBySeller
-} = require('../controllers/adminProductController');
-
-const {
-  getAdminOrders,
-  getAdminOrderById,
-  updateAdminOrderStatus,
-  deleteAdminOrder,
-  getOrderStats,
-  getRevenueBySellerStats
-} = require('../controllers/adminOrderController');
-
 const { adminAuth, checkPermission, checkRole, loginRateLimit } = require('../middleware/adminAuth');
 
 // @desc    Register admin
@@ -556,23 +538,5 @@ router.get('/test', adminAuth, (req, res) => {
     admin: req.admin
   });
 });
-
-// ============ PRODUCT MANAGEMENT ROUTES ============
-// All product routes require admin authentication and manage_products permission
-router.get('/products', adminAuth, checkPermission('manage_products'), getAdminProducts);
-router.get('/products/:id', adminAuth, checkPermission('manage_products'), getAdminProductById);
-router.post('/products', adminAuth, checkPermission('manage_products'), createAdminProduct);
-router.put('/products/:id', adminAuth, checkPermission('manage_products'), updateAdminProduct);
-router.delete('/products/:id', adminAuth, checkPermission('manage_products'), deleteAdminProduct);
-router.get('/products/stats/by-seller', adminAuth, checkPermission('manage_products'), getProductStatsBySeller);
-
-// ============ ORDER MANAGEMENT ROUTES ============
-// All order routes require admin authentication and manage_orders permission
-router.get('/orders', adminAuth, checkPermission('manage_orders'), getAdminOrders);
-router.get('/orders/:orderId', adminAuth, checkPermission('manage_orders'), getAdminOrderById);
-router.put('/orders/:orderId/status', adminAuth, checkPermission('manage_orders'), updateAdminOrderStatus);
-router.delete('/orders/:orderId', adminAuth, checkPermission('manage_orders'), deleteAdminOrder);
-router.get('/orders/stats/summary', adminAuth, checkPermission('manage_orders'), getOrderStats);
-router.get('/orders/stats/revenue-by-seller', adminAuth, checkPermission('manage_orders'), getRevenueBySellerStats);
 
 module.exports = router;

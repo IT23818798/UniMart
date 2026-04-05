@@ -1,4 +1,5 @@
 const Seller = require('../models/Seller');
+const Product = require('../models/Product');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
@@ -511,6 +512,13 @@ const getSellerDetails = async (req, res) => {
   try {
     const seller = await Seller.findById(req.params.id)
       .select('-password -bankDetails -loginAttempts -lockUntil -resetPasswordToken -resetPasswordExpire');
+    const totalProducts = seller ? await Product.countDocuments({
+      $or: [
+        { seller: seller._id },
+        { seller: seller._id.toString() },
+        { seller: seller.businessName }
+      ]
+    }) : 0;
     
     if (!seller) {
       return res.status(404).json({
@@ -519,9 +527,33 @@ const getSellerDetails = async (req, res) => {
       });
     }
 
+    const locationText = seller.location?.address || seller.address || 'Not specified';
+
     res.json({
       success: true,
-      data: seller
+      data: {
+        id: seller._id,
+        businessName: seller.businessName,
+        firstName: seller.firstName,
+        lastName: seller.lastName,
+        fullName: seller.fullName,
+        email: seller.email,
+        phone: seller.phone,
+        address: seller.address,
+        location: seller.location,
+        locationText,
+        businessType: seller.businessType,
+        businessTypeLabel: seller.businessType ? seller.businessType.replace(/_/g, ' ') : 'farm',
+        isVerified: seller.isVerified,
+        verificationStatus: seller.verificationStatus,
+        ratings: seller.ratings,
+        reviews: seller.reviews,
+        totalProducts: Math.max(totalProducts, seller.totalProducts || 0),
+        memberSince: seller.createdAt,
+        profileImage: seller.profileImage,
+        createdAt: seller.createdAt,
+        updatedAt: seller.updatedAt
+      }
     });
   } catch (error) {
     console.error('Get seller details error:', error);

@@ -1,66 +1,118 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
-const orderItemSchema = new mongoose.Schema({
-  product: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product',
-    required: true
-  },
-  title: { type: String, required: true },
-  image: { type: String },
-  price: { type: Number, required: true },
-  quantity: { type: Number, required: true }
-});
+const orderSchema = new mongoose.Schema(
+{
+    orderID: {
+        type: String,
+        required: true,
+        unique: true
+    },
 
-const orderSchema = new mongoose.Schema({
-  buyer: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Buyer',
-    required: true
-  },
-  seller: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Seller',
-    required: true
-  },
-  orderItems: [orderItemSchema],
-  totalAmount: {
-    type: Number,
-    required: true
-  },
-  orderStatus: {
-    type: String,
-    enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'done'],
-    default: 'pending'
-  },
-  paymentStatus: {
-    type: String,
-    enum: ['pending', 'completed', 'failed', 'refunded'],
-    default: 'completed' // Keeping simple for MVP
-  },
-  shippingAddress: {
-    street: { type: String },
-    city: { type: String },
-    state: { type: String },
-    zipCode: { type: String },
-    country: { type: String },
-    phone: { type: String }
-  },
-  contactPhone: {
-    type: String,
-    required: false
-  },
-  deliveryMethod: {
-    type: String,
-    enum: ['pickup', 'delivery'],
-    default: 'pickup'
-  },
-  isReviewed: {
-    type: Boolean,
-    default: false
-  }
-}, {
-  timestamps: true
-});
+    sellerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Seller',
+        required: true
+    },
 
-module.exports = mongoose.model('Order', orderSchema);
+    items: [
+        {
+            _id: {
+                type: mongoose.Schema.Types.ObjectId,
+                required: true,
+                ref: "Product"
+            },
+
+            sellerId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Seller',
+                required: true
+            },
+
+            name: {
+                type: String,
+                required: true
+            },
+
+            description: {
+                type: String,
+                required: true
+            },
+
+            price: {
+                type: Number,
+                required: true
+            },
+
+            category: {
+                type: String,
+                enum: ['Breakfast', 'Lunch', 'Beverages', 'Snacks', 'Desserts'],
+                required: true
+            },
+
+            image: {
+                type: String,
+                default: "no-photo.jpg"
+            },
+
+            prepTime: {
+                type: Number,
+                default: 15
+            },
+
+            // ✅ Quantity ordered (IMPORTANT)
+            quantity: {
+                type: Number,
+                required: true
+            }
+        }
+    ],
+
+    customerName: {
+        type: String,
+        required: true
+    },
+
+    email: {
+        type: String,
+        required: true
+    },
+
+    phone: {
+        type: String,
+        required: true
+    },
+
+    address: {
+        type: String,
+        required: true
+    },
+
+    total: {
+        type: Number,
+        required: true
+    },
+
+    status: {
+        type: String,
+        default: "Pending",
+        enum: ["Pending", "Preparing", "Ready", "Completed", "Cancelled"]
+    },
+
+    // // ✅ Pickup time slot added
+    // pickupTime: {
+    //     type: mongoose.Schema.Types.ObjectId,
+    //     ref: "TimeSlot",
+    //     required: true
+
+    // },
+
+    date: {
+        type: Date,
+        default: Date.now
+    }
+
+},
+{ timestamps: true }
+);
+
+export default mongoose.model("Order", orderSchema);

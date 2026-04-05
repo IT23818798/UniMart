@@ -1,10 +1,12 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const Buyer = require('../models/Buyer');
+const PointTransaction = require('../models/PointTransaction');
 
 // Create a new order (Buyer)
 exports.createOrder = async (req, res) => {
   try {
-    const { orderItems, contactPhone } = req.body;
+    const { orderItems, contactPhone, paymentMethod = 'card', pointsUsed = 0 } = req.body;
 
     if (!orderItems || orderItems.length === 0) {
       return res.status(400).json({ success: false, message: 'No order items provided' });
@@ -43,16 +45,90 @@ exports.createOrder = async (req, res) => {
       await product.save();
     }
 
+    const buyer = await Buyer.findById(req.buyer.id);
+    if (!buyer) {
+      return res.status(404).json({ success: false, message: 'Buyer not found' });
+    }
+
+    // --- POINTS LOGIC ---
+    // 1. Calculate Earnings (Always 10% of total product price)
+    const pointsEarned = Math.floor(totalAmount * 0.10);
+    
+    // 2. Validate Redemption (If using points)
+    const currentPoints = buyer.purchaseStats?.loyaltyPoints || 0;
+    if (pointsUsed > 0) {
+      if (currentPoints < pointsUsed) {
+        return res.status(400).json({ success: false, message: `Insufficient Star Points. You have ${currentPoints} pts but tried to use ${pointsUsed} pts.` });
+      }
+      if (pointsUsed > totalAmount) {
+        return res.status(400).json({ success: false, message: `Cannot use more points (${pointsUsed}) than the order total (Rs ${totalAmount}).` });
+      }
+    }
+
+    // 3. Determine final Payment Method string for history
+    let finalPaymentMethod = paymentMethod;
+    if (pointsUsed > 0 && pointsUsed < totalAmount) {
+      finalPaymentMethod = 'split';
+    } else if (pointsUsed >= totalAmount) {
+      finalPaymentMethod = 'points';
+    }
+
+    // 4. Update Buyer Balance & Stats
+    const newPointsBalance = Math.max(0, currentPoints - pointsUsed + pointsEarned);
+    const newTotalOrders = (buyer.purchaseStats?.totalOrders || 0) + 1;
+    const newTotalSpent = (buyer.purchaseStats?.totalSpent || 0) + totalAmount;
+
+    await Buyer.findByIdAndUpdate(
+      req.buyer.id,
+      { 
+        $set: { 
+          'purchaseStats.loyaltyPoints': newPointsBalance,
+          'purchaseStats.totalOrders': newTotalOrders,
+          'purchaseStats.totalSpent': newTotalSpent,
+          'purchaseStats.lastOrderDate': new Date()
+        } 
+      },
+      { new: true }
+    );
+
+    // 5. Create Order Record
     const order = new Order({
       buyer: req.buyer.id,
       seller: sellerId,
       orderItems,
       totalAmount,
       contactPhone,
+      paymentMethod: finalPaymentMethod,
+      pointsEarned,
+      pointsUsed,
       deliveryMethod: 'pickup'
     });
 
     await order.save();
+
+    // 6. RECORD TRANSACTIONS IN LEDGER (Atomic for consistency)
+    // Spend Transaction
+    if (pointsUsed > 0) {
+        await PointTransaction.create({
+            buyer: buyer._id,
+            amount: -pointsUsed,
+            type: 'redeem',
+            description: `Used for Order #${order._id.toString().substring(0,8)}`,
+            order: order._id
+        });
+    }
+    // Earn Transaction
+    if (pointsEarned > 0) {
+        await PointTransaction.create({
+            buyer: buyer._id,
+            amount: pointsEarned,
+            type: 'earn',
+            description: `Earned from Order #${order._id.toString().substring(0,8)} (10% Rate)`,
+            order: order._id
+        });
+    }
+
+    console.log(`[Ledger] Order ${order._id}: Spent ${pointsUsed}, Earned ${pointsEarned}. New Balance: ${newPointsBalance}`);
 
     // Populate product details for response
     await order.populate('orderItems.product', 'title category images');
@@ -63,6 +139,7 @@ exports.createOrder = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
 
 // Get logged in buyer's orders (Buyer)
 exports.getBuyerOrders = async (req, res) => {

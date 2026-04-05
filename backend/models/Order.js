@@ -38,6 +38,19 @@ const orderSchema = new mongoose.Schema({
     enum: ['pending', 'completed', 'failed', 'refunded'],
     default: 'completed' // Keeping simple for MVP
   },
+  paymentMethod: {
+    type: String,
+    enum: ['card', 'points', 'split'],
+    default: 'card'
+  },
+  pointsEarned: {
+    type: Number,
+    default: 0
+  },
+  pointsUsed: {
+    type: Number,
+    default: 0
+  },
   shippingAddress: {
     street: { type: String },
     city: { type: String },

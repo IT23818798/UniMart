@@ -151,11 +151,13 @@ const requireLoyaltyPoints = (minPoints = 0) => {
         });
       }
 
-      if (buyer.purchaseStats.loyaltyPoints < minPoints) {
+      const currentPoints = buyer.purchaseStats?.loyaltyPoints || 0;
+
+      if (currentPoints < minPoints) {
         return res.status(403).json({
           success: false,
           message: `This feature requires ${minPoints} loyalty points`,
-          currentPoints: buyer.purchaseStats.loyaltyPoints,
+          currentPoints: currentPoints,
           requiredPoints: minPoints
         });
       }

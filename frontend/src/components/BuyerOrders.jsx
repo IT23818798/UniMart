@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaTrash, FaDownload } from 'react-icons/fa';
+import { FaTrash, FaDownload, FaStar, FaCreditCard } from 'react-icons/fa';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -112,6 +112,7 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
     doc.setTextColor(100);
     doc.text(`Method: ${order.deliveryMethod || 'Pickup'}`, 120, 52);
     doc.text(`Phone: ${order.contactPhone || order.shippingAddress?.phone || 'N/A'}`, 120, 57);
+    doc.text(`Payment: ${order.paymentMethod === 'points' ? 'Star Points' : 'Card'}`, 120, 62);
 
     // Table
     const tableColumn = ["Item Description", "Price", "Quantity", "Total"];
@@ -127,7 +128,7 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
     });
 
     autoTable(doc, {
-      startY: 70,
+      startY: 75,
       head: [tableColumn],
       body: tableRows,
       theme: 'striped',
@@ -140,11 +141,19 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
     doc.setFontSize(14);
     doc.setTextColor(0);
     doc.text(`Total Amount: Rs ${order.totalAmount?.toFixed(2)}`, 14, finalY + 15);
+
+    // Points info
+    if (order.pointsEarned || order.pointsUsed) {
+      doc.setFontSize(11);
+      doc.setTextColor(180, 120, 0);
+      if (order.pointsUsed > 0) doc.text(`Star Points Used: ${order.pointsUsed} pts`, 14, finalY + 25);
+      if (order.pointsEarned > 0) doc.text(`Star Points Earned: +${order.pointsEarned} pts`, 14, finalY + (order.pointsUsed > 0 ? 33 : 25));
+    }
     
     // Footer message
     doc.setFontSize(10);
     doc.setTextColor(150);
-    doc.text('Thank you for shopping at Unimart Student Marketplace!', 14, finalY + 30);
+    doc.text('Thank you for shopping at Unimart Student Marketplace!', 14, finalY + 45);
 
     doc.save(`Unimart_Receipt_${order._id.substring(0,8)}.pdf`);
   };
@@ -163,6 +172,8 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
               <th className="py-3 px-4 text-left">Seller</th>
               <th className="py-3 px-4 text-left">Items</th>
               <th className="py-3 px-4 text-left">Total</th>
+              <th className="py-3 px-4 text-left">Payment</th>
+              <th className="py-3 px-4 text-left">Points</th>
               <th className="py-3 px-4 text-left">Status</th>
               <th className="py-3 px-4 text-left">Action</th>
             </tr>
@@ -184,6 +195,33 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
                   ))}
                 </td>
                 <td className="py-3 px-4 font-semibold text-blue-600">Rs {order.totalAmount.toFixed(2)}</td>
+                <td className="py-3 px-4">
+                  {order.paymentMethod === 'split' ? (
+                    <div className="flex flex-col gap-1">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        <FaCreditCard /> Card + <FaStar className="text-yellow-400" /> Points
+                      </span>
+                      <p className="text-[10px] text-gray-500 font-medium">Rs {(order.totalAmount - (order.pointsUsed || 0)).toFixed(2)} + {order.pointsUsed} pts</p>
+                    </div>
+                  ) : order.paymentMethod === 'points' ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-50 text-yellow-700 border border-yellow-200">
+                      <FaStar className="text-yellow-400" /> Star Points
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                      <FaCreditCard /> Card
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 px-4 text-xs space-y-1">
+                  {order.pointsEarned > 0 && (
+                    <div className="text-green-600 font-semibold">+{order.pointsEarned} earned</div>
+                  )}
+                  {order.pointsUsed > 0 && (
+                    <div className="text-red-500 font-semibold">-{order.pointsUsed} used</div>
+                  )}
+                  {!order.pointsEarned && !order.pointsUsed && <span className="text-gray-300">—</span>}
+                </td>
                 <td className="py-3 px-4">
                   <span className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize shadow-sm border ${
                       order.orderStatus === 'delivered' ? 'bg-green-50 text-green-700 border-green-200' :
@@ -207,7 +245,7 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
             ))}
             {orders.length === 0 && (
               <tr>
-                <td colSpan="6" className="text-center py-8 text-gray-500 border border-dashed border-gray-300 rounded-lg">
+                <td colSpan="8" className="text-center py-8 text-gray-500 border border-dashed border-gray-300 rounded-lg">
                   You haven't placed any orders yet.
                 </td>
               </tr>

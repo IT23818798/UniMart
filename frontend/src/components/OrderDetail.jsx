@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FaArrowLeft, FaBox, FaStore, FaPhone, FaMapMarkerAlt, FaCalendarAlt, FaCheckCircle, FaClock, FaTimesCircle, FaStar, FaDownload } from 'react-icons/fa';
+import { FaArrowLeft, FaBox, FaStore, FaPhone, FaMapMarkerAlt, FaCalendarAlt, FaCheckCircle, FaClock, FaTimesCircle, FaStar, FaDownload, FaCreditCard } from 'react-icons/fa';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -103,6 +103,7 @@ const OrderDetail = ({ order, onBack, onOrderUpdated, onChatWithSeller }) => {
     doc.setTextColor(100);
     doc.text(`Method: ${order.deliveryMethod || 'Pickup'}`, 120, 52);
     doc.text(`Phone: ${order.contactPhone || order.shippingAddress?.phone || 'N/A'}`, 120, 57);
+    doc.text(`Payment: ${order.paymentMethod === 'points' ? 'Star Points' : 'Card'}`, 120, 62);
 
     // Table
     const tableColumn = ["Item Description", "Price", "Quantity", "Total"];
@@ -118,7 +119,7 @@ const OrderDetail = ({ order, onBack, onOrderUpdated, onChatWithSeller }) => {
     });
 
     autoTable(doc, {
-      startY: 70,
+      startY: 75,
       head: [tableColumn],
       body: tableRows,
       theme: 'striped',
@@ -131,11 +132,19 @@ const OrderDetail = ({ order, onBack, onOrderUpdated, onChatWithSeller }) => {
     doc.setFontSize(14);
     doc.setTextColor(0);
     doc.text(`Total Amount: Rs ${order.totalAmount?.toFixed(2)}`, 14, finalY + 15);
+
+    // Points info
+    if (order.pointsEarned || order.pointsUsed) {
+      doc.setFontSize(11);
+      doc.setTextColor(180, 120, 0);
+      if (order.pointsUsed > 0) doc.text(`Star Points Used: ${order.pointsUsed} pts`, 14, finalY + 25);
+      if (order.pointsEarned > 0) doc.text(`Star Points Earned: +${order.pointsEarned} pts`, 14, finalY + (order.pointsUsed > 0 ? 33 : 25));
+    }
     
     // Footer message
     doc.setFontSize(10);
     doc.setTextColor(150);
-    doc.text('Thank you for shopping at Unimart Student Marketplace!', 14, finalY + 30);
+    doc.text('Thank you for shopping at Unimart Student Marketplace!', 14, finalY + 45);
 
     doc.save(`Unimart_Receipt_${order._id.substring(0,8)}.pdf`);
   };
@@ -250,8 +259,61 @@ const OrderDetail = ({ order, onBack, onOrderUpdated, onChatWithSeller }) => {
                   <span className="font-bold text-gray-900">{order.seller?.businessName || 'Unknown Seller'}</span>
                 </div>
               </div>
+              {/* Payment Method */}
+              <div>
+                <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Method</p>
+                {order.paymentMethod === 'split' ? (
+                  <div className="flex flex-col gap-1.5">
+                    <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      <FaCreditCard /> Card + <FaStar className="text-yellow-400" /> Points
+                    </span>
+                    <p className="text-xs font-bold text-gray-500 ml-1">
+                      Rs {(order.totalAmount - (order.pointsUsed || 0)).toFixed(2)} + {order.pointsUsed} pts
+                    </p>
+                  </div>
+                ) : order.paymentMethod === 'points' ? (
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-bold bg-yellow-50 text-yellow-700 border border-yellow-200">
+                    <FaStar className="text-yellow-400" /> Star Points
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                    <FaCreditCard /> Credit / Debit Card
+                  </span>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Star Points Summary */}
+          {(order.pointsEarned > 0 || order.pointsUsed > 0) && (
+            <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl border border-yellow-200 shadow-sm p-6">
+              <h3 className="text-lg font-bold text-yellow-800 mb-4 flex items-center gap-2">
+                <FaStar className="text-yellow-400" /> Star Points
+              </h3>
+              <div className="space-y-3">
+                {order.pointsUsed > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 text-sm">Points Applied</span>
+                    <span className="font-bold text-red-600 bg-red-50 px-3 py-1 rounded-lg border border-red-100 text-sm">
+                      -{order.pointsUsed.toLocaleString()} pts
+                    </span>
+                  </div>
+                )}
+                {order.pointsEarned > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 text-sm">Points Earned</span>
+                    <span className="font-bold text-green-700 bg-green-50 px-3 py-1 rounded-lg border border-green-100 text-sm">
+                      +{order.pointsEarned.toLocaleString()} pts
+                    </span>
+                  </div>
+                )}
+                <div className="pt-2 border-t border-yellow-200">
+                   <p className="text-[10px] text-yellow-700 font-bold uppercase tracking-widest">LOYALTY REWARD</p>
+                   <p className="text-xs text-yellow-800">10% of order value earned as Star Points</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Contact & Delivery */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">

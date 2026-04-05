@@ -38,6 +38,30 @@ router.put('/change-password', authenticateBuyer, changePassword);
 // Dashboard routes
 router.get('/dashboard/stats', authenticateBuyer, getDashboardStats);
 
+// Star Points - dedicated endpoint for always-fresh balance
+router.get('/points', authenticateBuyer, async (req, res) => {
+  try {
+    const Buyer = require('../models/Buyer');
+    const buyer = await Buyer.findById(req.buyer.id).select('purchaseStats');
+    if (!buyer) return res.status(404).json({ success: false, message: 'Buyer not found' });
+    res.json({
+      success: true,
+      data: {
+        loyaltyPoints: buyer.purchaseStats.loyaltyPoints || 0,
+        loyaltyLevel: buyer.getLoyaltyLevel()
+      }
+    });
+  } catch (error) {
+    console.error('Get points error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
+// Points history and test award
+const { getPointsHistory, addTestPoints } = require('../controllers/buyerController');
+router.get('/points/history', authenticateBuyer, getPointsHistory);
+router.post('/points/test-add', authenticateBuyer, addTestPoints);
+
 // Wishlist management
 router.post('/wishlist', addToWishlist);
 router.delete('/wishlist/:productId', removeFromWishlist);

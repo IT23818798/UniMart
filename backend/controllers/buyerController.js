@@ -327,23 +327,23 @@ const getDashboardStats = async (req, res) => {
       });
     }
 
-    // Mock dashboard statistics (replace with actual queries from orders/products collections)
+    // Safe dashboard statistics with defaults for users missing purchaseStats
     const dashboardStats = {
       buyerInfo: {
         id: buyer._id,
         fullName: buyer.fullName,
-        loyaltyLevel: buyer.getLoyaltyLevel(),
-        loyaltyPoints: buyer.purchaseStats.loyaltyPoints,
-        membershipType: buyer.membership.type,
+        loyaltyLevel: buyer.getLoyaltyLevel ? buyer.getLoyaltyLevel() : 'Bronze',
+        loyaltyPoints: buyer.purchaseStats?.loyaltyPoints || 0,
+        membershipType: buyer.membership?.type || 'Standard',
         memberSince: buyer.createdAt,
         lastLogin: buyer.lastLogin
       },
       purchaseMetrics: {
-        totalOrders: buyer.purchaseStats.totalOrders || 0,
-        totalSpent: buyer.purchaseStats.totalSpent || 0,
-        averageOrderValue: buyer.purchaseStats.averageOrderValue || 0,
-        lastOrderDate: buyer.purchaseStats.lastOrderDate,
-        favoriteCategories: buyer.purchaseStats.favoriteCategories || [],
+        totalOrders: buyer.purchaseStats?.totalOrders || 0,
+        totalSpent: buyer.purchaseStats?.totalSpent || 0,
+        averageOrderValue: buyer.purchaseStats?.averageOrderValue || 0,
+        lastOrderDate: buyer.purchaseStats?.lastOrderDate,
+        favoriteCategories: buyer.purchaseStats?.favoriteCategories || [],
         monthlySpending: 0 // Calculate from actual orders
       },
       orderData: {
@@ -390,8 +390,8 @@ const getDashboardStats = async (req, res) => {
       },
       savings: {
         totalSavings: 0, // From discounts and promotions
-        loyaltyRewards: buyer.purchaseStats.loyaltyPoints,
-        membershipBenefits: buyer.membership.benefits || []
+        loyaltyRewards: buyer.purchaseStats?.loyaltyPoints || 0,
+        membershipBenefits: buyer.membership?.benefits || []
       }
     };
 
@@ -565,6 +565,60 @@ const deleteBuyer = async (req, res) => {
   }
 };
 
+// --- STAR POINTS EXTENSTIONS ---
+
+// Get point transaction history
+const getPointsHistory = async (req, res) => {
+  try {
+    const PointTransaction = require('../models/PointTransaction');
+    const transactions = await PointTransaction.find({ buyer: req.buyer.id })
+      .sort({ createdAt: -1 })
+      .limit(50);
+    
+    res.json({
+      success: true,
+      data: transactions
+    });
+  } catch (error) {
+    console.error('Get points history error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Add test points (Bonus/Reward)
+const addTestPoints = async (req, res) => {
+  try {
+    const { amount = 1000, reason = 'Daily Reward' } = req.body;
+    const buyer = await Buyer.findById(req.buyer.id);
+    const PointTransaction = require('../models/PointTransaction');
+
+    if (!buyer) return res.status(404).json({ success: false, message: 'Buyer not found' });
+
+    // Update balance
+    buyer.purchaseStats.loyaltyPoints = (buyer.purchaseStats.loyaltyPoints || 0) + amount;
+    await buyer.save();
+
+    // Create ledger entry
+    await PointTransaction.create({
+      buyer: buyer._id,
+      amount: amount,
+      type: 'bonus',
+      description: reason
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully added ${amount} Star Points!`,
+      data: {
+        newBalance: buyer.purchaseStats.loyaltyPoints
+      }
+    });
+  } catch (error) {
+    console.error('Add test points error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 module.exports = {
   registerBuyer,
   loginBuyer,
@@ -577,5 +631,7 @@ module.exports = {
   removeFromWishlist,
   addDeliveryAddress,
   getAllBuyers,
-  deleteBuyer
-};
+  deleteBuyer,
+  getPointsHistory,
+  addTestPoints
+};

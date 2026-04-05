@@ -57,6 +57,9 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   const [checkoutPhone, setCheckoutPhone] = useState('');
   const [orderQuantity, setOrderQuantity] = useState(1);
   const [showPaymentGateway, setShowPaymentGateway] = useState(false);
+  const [livePoints, setLivePoints] = useState(0);
+  const [pointsHistory, setPointsHistory] = useState([]);
+  const [isClaiming, setIsClaiming] = useState(false);
 
   // Notification counts
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -65,6 +68,8 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
     if (initialBuyer) {
       setBuyer(initialBuyer);
       fetchDashboardStats();
+      fetchPointsHistory();
+      fetchLivePoints();
     } else {
       fetchBuyerData();
     }
@@ -74,9 +79,13 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
     try {
       setLoading(true);
       
+      const headers = {
+        'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+      };
+      
       const [profileResponse, statsResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/buyer/profile', { credentials: 'include' }),
-        fetch('http://localhost:5000/api/buyer/dashboard/stats', { credentials: 'include' })
+        fetch('http://localhost:5000/api/buyer/profile', { headers, credentials: 'include' }),
+        fetch('http://localhost:5000/api/buyer/dashboard/stats', { headers, credentials: 'include' })
       ]);
 
       if (!profileResponse.ok || !statsResponse.ok) {
@@ -106,7 +115,12 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/buyer/dashboard/stats', { credentials: 'include' });
+      const response = await fetch('http://localhost:5000/api/buyer/dashboard/stats', { 
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+        },
+        credentials: 'include' 
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -118,6 +132,91 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
       console.error('Error fetching dashboard stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch fresh buyer profile to update purchaseStats (points balance)
+  const fetchBuyerProfile = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/buyer/profile', { 
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+        },
+        credentials: 'include' 
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setBuyer(data.data.buyer);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing buyer profile:', error);
+    }
+  };
+
+  // Fetch the most up-to-date points balance from a dedicated lightweight endpoint
+  const fetchLivePoints = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/buyer/points', { 
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+        },
+        credentials: 'include' 
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setLivePoints(data.data.loyaltyPoints);
+          return data.data.loyaltyPoints;
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching live points:', error);
+    }
+    return dashboardStats?.buyerInfo?.loyaltyPoints ?? buyer?.purchaseStats?.loyaltyPoints ?? 0;
+  };
+
+  const fetchPointsHistory = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/buyer/points/history', { 
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+        },
+        credentials: 'include' 
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setPointsHistory(data.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching points history:', error);
+    }
+  };
+
+  const claimTestPoints = async () => {
+    try {
+      setIsClaiming(true);
+      const response = await fetch('http://localhost:5000/api/buyer/points/test-add', { 
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+        },
+        credentials: 'include',
+        body: JSON.stringify({ amount: 1000, reason: 'Daily Reward' })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert('1000 Star Points claimed successfully!');
+        await Promise.all([fetchLivePoints(), fetchPointsHistory(), fetchDashboardStats(), fetchBuyerProfile()]);
+      }
+    } catch (error) {
+      console.error('Error claiming points:', error);
+    } finally {
+      setIsClaiming(false);
     }
   };
 
@@ -379,33 +478,53 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
                   title="Total Orders"
-                  value={dashboardStats.purchaseMetrics.totalOrders}
+                  value={dashboardStats?.purchaseMetrics?.totalOrders || 0}
                   icon={FaShoppingCart}
                   color="bg-blue-500"
                   change={8}
                 />
                 <StatCard
                   title="Total Spent"
-                  value={dashboardStats.purchaseMetrics.totalSpent}
+                  value={dashboardStats?.purchaseMetrics?.totalSpent || 0}
                   icon={FaDollarSign}
                   color="bg-green-500"
                   prefix="Rs "
                   change={15}
                 />
                 <StatCard
-                  title="Loyalty Points"
-                  value={dashboardStats.buyerInfo.loyaltyPoints}
+                  title="Star Points"
+                  value={dashboardStats?.buyerInfo?.loyaltyPoints || 0}
                   icon={FaMedal}
                   color="bg-yellow-500"
-                  change={25}
+                  suffix=" pts"
                 />
                 <StatCard
                   title="Wishlist Items"
-                  value={dashboardStats.wishlistStats.totalItems}
+                  value={dashboardStats?.wishlistStats?.totalItems || 0}
                   icon={FaHeart}
                   color="bg-red-500"
                   change={5}
                 />
+              </div>
+
+              {/* Star Points Banner */}
+              <div className="bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="bg-white/20 rounded-full p-3">
+                    <FaMedal className="text-3xl text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-yellow-100 uppercase tracking-wider">⭐ Star Points Balance</p>
+                    <p className="text-4xl font-extrabold tracking-tight">{(dashboardStats?.buyerInfo?.loyaltyPoints || 0).toLocaleString()} <span className="text-xl font-bold">pts</span></p>
+                    <p className="text-sm text-yellow-100 mt-1">≈ Rs {(dashboardStats?.buyerInfo?.loyaltyPoints || 0).toLocaleString()} purchasing power</p>
+                  </div>
+                </div>
+                <div className="bg-white/20 rounded-2xl p-4 text-center min-w-[200px]">
+                  <p className="text-xs font-bold text-yellow-100 uppercase tracking-wider mb-2">How Points Work</p>
+                  <p className="text-sm font-semibold">🛒 Earn 10% back on every purchase</p>
+                  <p className="text-sm font-semibold mt-1">💳 1 Star Point = 1 LKR to spend</p>
+                  <p className="text-xs text-yellow-100 mt-2">Use points at checkout to pay fully!</p>
+                </div>
               </div>
 
               {/* Main Content Grid */}
@@ -572,6 +691,118 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
               }}
             />
           )}
+
+          {activeTab === 'loyalty' && (
+            <div className="space-y-8 animate-in fade-in duration-500">
+               {/* Points Overview Card */}
+               <div className="bg-gradient-to-br from-indigo-700 via-blue-600 to-indigo-800 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+                  <div className="relative z-10">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <div>
+                        <p className="text-blue-100 font-bold uppercase tracking-widest text-sm mb-2">Available Balance</p>
+                        <h2 className="text-6xl font-black flex items-baseline gap-3">
+                          {livePoints.toLocaleString()} 
+                          <span className="text-2xl font-bold text-blue-200">Star Points</span>
+                        </h2>
+                        <p className="mt-4 text-blue-100/80 font-medium flex items-center gap-2">
+                           <FaCheckCircle className="text-green-400" /> 1 Star Point = 1 LKR Purchasing Power
+                        </p>
+                      </div>
+                      <button 
+                        onClick={claimTestPoints}
+                        disabled={isClaiming}
+                        className={`group px-8 py-4 rounded-2xl font-black text-lg shadow-lg transition-all flex items-center gap-3 ${
+                          isClaiming ? 'bg-white/50 cursor-wait' : 'bg-white text-indigo-700 hover:bg-yellow-400 hover:text-white hover:-translate-y-1'
+                        }`}
+                      >
+                         <FaGift className={isClaiming ? 'animate-bounce' : 'group-hover:rotate-12 transition-transform'} />
+                         {isClaiming ? 'Processing...' : 'Claim Daily Reward'}
+                      </button>
+                    </div>
+                  </div>
+               </div>
+
+               {/* Split Columns */}
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Left: How it works */}
+                  <div className="lg:col-span-1 space-y-6">
+                     <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                        <h3 className="font-bold text-gray-900 mb-6 flex items-center gap-2">
+                           <FaInfoCircle className="text-blue-500" /> How to Earn
+                        </h3>
+                        <div className="space-y-6">
+                           <div className="flex gap-4">
+                              <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                 <FaShoppingCart className="text-green-600" />
+                              </div>
+                              <div>
+                                 <p className="font-bold text-gray-800">Shop & Earn</p>
+                                 <p className="text-sm text-gray-500">Get 10% back in points on every single purchase automatically.</p>
+                              </div>
+                           </div>
+                           <div className="flex gap-4">
+                              <div className="w-10 h-10 bg-yellow-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                 <FaMedal className="text-yellow-600" />
+                              </div>
+                              <div>
+                                 <p className="font-bold text-gray-800">Tier Up</p>
+                                 <p className="text-sm text-gray-500">Higher loyalty levels unlock bonus point multipliers!</p>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* Right: History Ledger */}
+                  <div className="lg:col-span-2">
+                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden min-h-[400px]">
+                        <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
+                           <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                              <FaHistory className="text-gray-400" /> Points History Ledger
+                           </h3>
+                           <button onClick={fetchPointsHistory} className="text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors">Refresh</button>
+                        </div>
+                        <div className="overflow-x-auto">
+                           <table className="w-full text-left">
+                              <thead>
+                                 <tr className="bg-gray-50/50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">
+                                    <th className="px-6 py-4">Transaction</th>
+                                    <th className="px-6 py-4">Description</th>
+                                    <th className="px-6 py-4 text-right">Amount</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50">
+                                 {pointsHistory.length > 0 ? pointsHistory.map(tx => (
+                                    <tr key={tx._id} className="hover:bg-gray-50/50 transition-colors">
+                                       <td className="px-6 py-4 uppercase text-[10px] font-bold text-gray-400">
+                                          {new Date(tx.createdAt).toLocaleDateString()}
+                                       </td>
+                                       <td className="px-6 py-4">
+                                          <p className="font-bold text-gray-800 text-sm">{tx.description}</p>
+                                          <p className="text-[10px] font-medium text-gray-400 capitalize">{tx.type}</p>
+                                       </td>
+                                       <td className={`px-6 py-4 text-right font-black ${tx.amount > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                          {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()} pts
+                                       </td>
+                                    </tr>
+                                 )) : (
+                                    <tr>
+                                       <td colSpan="3" className="px-6 py-12 text-center text-gray-400">
+                                          <FaHistory className="text-4xl mx-auto mb-4 opacity-10" />
+                                          <p className="font-bold">No transactions recorded yet.</p>
+                                          <p className="text-sm">Points earned from orders will appear here.</p>
+                                       </td>
+                                    </tr>
+                                 )}
+                              </tbody>
+                           </table>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+          )}
         </main>
       </div>
 
@@ -595,8 +826,9 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
                  </div>
                </div>
             
-               <form onSubmit={(e) => {
+               <form onSubmit={async (e) => {
                  e.preventDefault();
+                 await fetchLivePoints();
                  setShowPaymentGateway(true);
                }} className="space-y-6">
                  
@@ -665,8 +897,9 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
           product={selectedProduct}
           quantity={orderQuantity}
           contactPhone={checkoutPhone}
+          buyerPoints={livePoints !== null ? livePoints : (dashboardStats?.buyerInfo?.loyaltyPoints ?? buyer?.purchaseStats?.loyaltyPoints ?? 0)}
           onCancel={() => setShowPaymentGateway(false)}
-          onPaymentSuccess={async () => {
+          onPaymentSuccess={async ({ paymentMethod, pointsUsed }) => {
             try {
               const response = await fetch('http://localhost:5000/api/orders/buyer', {
                 method: 'POST',
@@ -674,6 +907,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
                   'Content-Type': 'application/json',
                   'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                   orderItems: [{
                     product: selectedProduct._id,
@@ -682,15 +916,23 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
                     price: selectedProduct.price,
                     quantity: orderQuantity
                   }],
-                  contactPhone: checkoutPhone
+                  contactPhone: checkoutPhone,
+                  paymentMethod,
+                  pointsUsed: pointsUsed || 0
                 })
               });
               const data = await response.json();
               if (data.success) {
-                alert('Order placed successfully!');
                 setShowPaymentGateway(false);
                 setSelectedProduct(null);
-                setActiveTab('orders'); // Jump to orders view
+                // Refresh everything so points sync immediately
+                await Promise.all([
+                   fetchBuyerProfile(), 
+                   fetchDashboardStats(), 
+                   fetchLivePoints(),
+                   fetchPointsHistory()
+                ]);
+                setActiveTab('orders');
               } else {
                 alert('Error placing order: ' + data.message);
                 setShowPaymentGateway(false);

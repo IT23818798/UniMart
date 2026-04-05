@@ -38,7 +38,8 @@ import {
   FaTwitter,
   FaLinkedin,
   FaInstagram,
-  FaArrowUp
+  FaArrowUp,
+  FaCheckCircle
 } from 'react-icons/fa';
 
 const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
@@ -838,115 +839,176 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
           )}
 
           {activeTab === 'loyalty' && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-               {/* Points Overview Card */}
-               <div className="bg-gradient-to-br from-indigo-700 via-blue-600 to-indigo-800 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-                  <div className="relative z-10">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                      <div>
-                        <p className="text-blue-100 font-bold uppercase tracking-widest text-sm mb-2">Available Balance</p>
-                        <h2 className="text-6xl font-black flex items-baseline gap-3">
-                          {livePoints.toLocaleString()} 
-                          <span className="text-2xl font-bold text-blue-200">Star Points</span>
-                        </h2>
-                        <p className="mt-4 text-blue-100/80 font-medium flex items-center gap-2">
-                           <FaCheckCircle className="text-green-400" /> 1 Star Point = 1 LKR Purchasing Power
-                        </p>
-                      </div>
-                      <button 
-                        onClick={claimTestPoints}
-                        disabled={isClaiming}
-                        className={`group px-8 py-4 rounded-2xl font-black text-lg shadow-lg transition-all flex items-center gap-3 ${
-                          isClaiming ? 'bg-white/50 cursor-wait' : 'bg-white text-indigo-700 hover:bg-yellow-400 hover:text-white hover:-translate-y-1'
-                        }`}
-                      >
-                         <FaGift className={isClaiming ? 'animate-bounce' : 'group-hover:rotate-12 transition-transform'} />
-                         {isClaiming ? 'Processing...' : 'Claim Daily Reward'}
-                      </button>
+              <div className="space-y-6 animate-in fade-in duration-500">
+                {/* Premium Wallet Header */}
+                <div className="relative overflow-hidden rounded-[2rem] p-8 text-white shadow-2xl bg-indigo-900">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-700 via-indigo-600 to-indigo-950 opacity-90"></div>
+                  <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -mr-32 -mt-32 blur-[100px] animate-pulse"></div>
+                  
+                  <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10">
+                    <div className="text-center lg:text-left space-y-2">
+                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 backdrop-blur-md mb-2">
+                          <FaMedal className="text-amber-400 text-xs" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-blue-100">Membership Wallet</span>
+                       </div>
+                       <h2 className="text-5xl font-black tracking-tight leading-none">
+                          {livePoints.toLocaleString()}
+                          <span className="text-xl font-bold ml-3 text-blue-200/60 uppercase tracking-tighter">Points</span>
+                       </h2>
+                       <p className="text-lg text-blue-100/70 font-semibold flex items-center justify-center lg:justify-start gap-2">
+                          <span className="opacity-50">≈</span> Rs {livePoints.toLocaleString()} <span className="text-xs opacity-50 font-normal">Available Credit</span>
+                       </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-4 bg-white/5 backdrop-blur-xl border border-white/10 p-5 rounded-[1.5rem]">
+                       <div className="text-center px-6 border-b sm:border-b-0 sm:border-r border-white/10 pb-4 sm:pb-0">
+                          <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1">Status</p>
+                          <p className="text-xl font-black text-white">{dashboardStats?.buyerInfo?.loyaltyLevel || 'Bronze'}</p>
+                       </div>
+                       
+                       {/* Daily Reward Logic Synced */}
+                       <div className="pl-2">
+                          <button 
+                            onClick={claimTestPoints}
+                            disabled={isClaiming || !!nextClaimDate}
+                            className={`group flex flex-col items-center gap-1 px-8 py-3 rounded-2xl font-black transition-all shadow-xl hover:-translate-y-1 active:scale-95 ${
+                              (isClaiming || !!nextClaimDate) 
+                              ? 'bg-white/10 text-white/40 cursor-not-allowed border border-white/5' 
+                              : 'bg-white text-indigo-700 hover:bg-yellow-400 hover:text-white'
+                            }`}
+                          >
+                             <div className="flex items-center gap-2">
+                                <FaGift className={`${isClaiming ? 'animate-bounce' : nextClaimDate ? '' : 'animate-pulse text-amber-500'}`} />
+                                <span className="text-sm tracking-tight text-white/90">
+                                   {isClaiming ? 'Processing...' : nextClaimDate ? 'CLAIMED TODAY' : 'CLAIM DAILY REWARD'}
+                                </span>
+                             </div>
+                             {nextClaimDate && (
+                                <span className="text-[9px] font-bold text-blue-200/50 uppercase tracking-[0.1em]">
+                                   Unlocks In: {timeToNextClaim || '...'}
+                                </span>
+                             )}
+                          </button>
+                       </div>
                     </div>
                   </div>
-               </div>
+                </div>
 
-               {/* Split Columns */}
-               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  {/* Left: How it works */}
-                  <div className="lg:col-span-1 space-y-6">
-                     <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                        <h3 className="font-bold text-gray-900 mb-6 flex items-center gap-2">
-                           <FaInfoCircle className="text-blue-500" /> How to Earn
-                        </h3>
-                        <div className="space-y-6">
-                           <div className="flex gap-4">
-                              <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                                 <FaShoppingCart className="text-green-600" />
-                              </div>
+                {/* Split Context Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  {/* Stats Sidebar */}
+                  <div className="space-y-4">
+                     <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm group hover:border-blue-100 transition-all">
+                        <div className="flex items-center gap-3 mb-4">
+                           <div className="p-2 bg-emerald-50 rounded-lg"><FaMedal className="text-emerald-600 text-xs" /></div>
+                           <h4 className="font-bold text-gray-800 text-[10px] uppercase tracking-wider">Earnings</h4>
+                        </div>
+                        <p className="text-2xl font-black text-gray-900">{(dashboardStats?.purchaseMetrics?.totalPointsEarned || 0).toLocaleString()} <span className="text-xs font-bold text-gray-400">PTS</span></p>
+                        <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase">Cumulative Rewards</p>
+                     </div>
+
+                     <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm group hover:border-rose-100 transition-all">
+                        <div className="flex items-center gap-3 mb-4">
+                           <div className="p-2 bg-rose-50 rounded-lg"><FaHistory className="text-rose-600 text-xs" /></div>
+                           <h4 className="font-bold text-gray-800 text-[10px] uppercase tracking-wider">Redeemed</h4>
+                        </div>
+                        <p className="text-2xl font-black text-gray-900">{(dashboardStats?.purchaseMetrics?.totalPointsUsed || 0).toLocaleString()} <span className="text-xs font-bold text-gray-400">PTS</span></p>
+                        <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase">Total Savings</p>
+                     </div>
+
+                     <div className="bg-indigo-50/50 rounded-2xl p-5 border border-indigo-100/50">
+                        <h4 className="font-black text-[10px] text-indigo-600 uppercase tracking-widest mb-4">How to Earn</h4>
+                        <div className="space-y-4">
+                           <div className="flex items-start gap-3">
+                              <FaShoppingCart className="text-indigo-400 text-xs mt-1" />
                               <div>
-                                 <p className="font-bold text-gray-800">Shop & Earn</p>
-                                 <p className="text-sm text-gray-500">Get 10% back in points on every single purchase automatically.</p>
+                                 <p className="text-xs font-bold text-gray-800 leading-tight">Shop & Save</p>
+                                 <p className="text-[9px] text-gray-500 font-medium leading-tight mt-0.5">10% Points back on every purchase</p>
                               </div>
                            </div>
-                           <div className="flex gap-4">
-                              <div className="w-10 h-10 bg-yellow-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                                 <FaMedal className="text-yellow-600" />
-                              </div>
+                           <div className="flex items-start gap-3">
+                              <FaGift className="text-indigo-400 text-xs mt-1" />
                               <div>
-                                 <p className="font-bold text-gray-800">Tier Up</p>
-                                 <p className="text-sm text-gray-500">Higher loyalty levels unlock bonus point multipliers!</p>
+                                 <p className="text-xs font-bold text-gray-800 leading-tight">Daily Bonus</p>
+                                 <p className="text-[9px] text-gray-500 font-medium leading-tight mt-0.5">Free Star Point every 24 hours</p>
                               </div>
                            </div>
                         </div>
                      </div>
                   </div>
 
-                  {/* Right: History Ledger */}
-                  <div className="lg:col-span-2">
-                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden min-h-[400px]">
-                        <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
-                           <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                              <FaHistory className="text-gray-400" /> Points History Ledger
-                           </h3>
-                           <button onClick={fetchPointsHistory} className="text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors">Refresh</button>
-                        </div>
-                        <div className="overflow-x-auto">
-                           <table className="w-full text-left">
-                              <thead>
-                                 <tr className="bg-gray-50/50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">
-                                    <th className="px-6 py-4">Transaction</th>
-                                    <th className="px-6 py-4">Description</th>
-                                    <th className="px-6 py-4 text-right">Amount</th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-50">
-                                 {pointsHistory.length > 0 ? pointsHistory.map(tx => (
-                                    <tr key={tx._id} className="hover:bg-gray-50/50 transition-colors">
-                                       <td className="px-6 py-4 uppercase text-[10px] font-bold text-gray-400">
-                                          {new Date(tx.createdAt).toLocaleDateString()}
-                                       </td>
-                                       <td className="px-6 py-4">
-                                          <p className="font-bold text-gray-800 text-sm">{tx.description}</p>
-                                          <p className="text-[10px] font-medium text-gray-400 capitalize">{tx.type}</p>
-                                       </td>
-                                       <td className={`px-6 py-4 text-right font-black ${tx.amount > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                          {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()} pts
-                                       </td>
-                                    </tr>
-                                 )) : (
-                                    <tr>
-                                       <td colSpan="3" className="px-6 py-12 text-center text-gray-400">
-                                          <FaHistory className="text-4xl mx-auto mb-4 opacity-10" />
-                                          <p className="font-bold">No transactions recorded yet.</p>
-                                          <p className="text-sm">Points earned from orders will appear here.</p>
-                                       </td>
-                                    </tr>
-                                 )}
-                              </tbody>
-                           </table>
-                        </div>
-                     </div>
+                  {/* Dynamic History Table */}
+                  <div className="lg:col-span-3 h-full">
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden h-full flex flex-col">
+                       <div className="p-5 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
+                          <div className="flex items-center gap-3">
+                             <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                             <h3 className="font-black text-[11px] text-gray-500 uppercase tracking-widest">Transaction Ledger</h3>
+                          </div>
+                          <button 
+                             onClick={fetchPointsHistory}
+                             className="text-[10px] font-black text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-full transition-all uppercase tracking-wider"
+                          >
+                             Refresh Ledger
+                          </button>
+                       </div>
+                       
+                       <div className="flex-1 overflow-auto max-h-[500px]">
+                          <table className="w-full text-left">
+                             <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
+                                <tr className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 border-b border-gray-100">
+                                   <th className="px-6 py-4">Status</th>
+                                   <th className="px-6 py-4">Transaction Details</th>
+                                   <th className="px-6 py-4 text-right">Value</th>
+                                </tr>
+                             </thead>
+                             <tbody className="divide-y divide-gray-50">
+                                {pointsHistory.length > 0 ? pointsHistory.map(tx => (
+                                   <tr key={tx._id} className="group hover:bg-indigo-50/20 transition-all">
+                                      <td className="px-6 py-4">
+                                         <div className={`text-[9px] font-black px-2 py-1 rounded-md inline-block text-center min-w-[70px] ${
+                                            tx.type === 'earn' ? 'bg-emerald-100 text-emerald-700' : 
+                                            tx.type === 'redeem' ? 'bg-rose-100 text-rose-700' : 
+                                            'bg-amber-100 text-amber-700'
+                                         }`}>
+                                            {tx.type.toUpperCase()}
+                                         </div>
+                                      </td>
+                                      <td className="px-6 py-4">
+                                         <p className="font-bold text-gray-800 text-sm tracking-tight">{tx.description}</p>
+                                         <p className="text-[10px] font-bold text-gray-400 mt-0.5">
+                                            {new Date(tx.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                                         </p>
+                                      </td>
+                                      <td className="px-6 py-4 text-right">
+                                         <div className="flex flex-col items-end">
+                                            <span className={`text-lg font-black tracking-tighter ${tx.amount > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                               {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()}
+                                               <span className="text-[10px] ml-1 font-bold">PTS</span>
+                                            </span>
+                                            <span className="text-[10px] text-gray-300 font-bold tracking-widest mt-0.5 uppercase">
+                                               Rs {Math.abs(tx.amount).toLocaleString()} Val
+                                            </span>
+                                         </div>
+                                      </td>
+                                   </tr>
+                                )) : (
+                                   <tr>
+                                      <td colSpan="3" className="px-6 py-20 text-center">
+                                         <div className="flex flex-col items-center gap-3 opacity-20">
+                                            <FaHistory className="text-5xl" />
+                                            <p className="font-black text-sm uppercase tracking-widest">Awaiting Transactions</p>
+                                         </div>
+                                      </td>
+                                   </tr>
+                                )}
+                             </tbody>
+                          </table>
+                       </div>
+                    </div>
                   </div>
-               </div>
-            </div>
+                </div>
+              </div>
           )}
         </main>
       </div>

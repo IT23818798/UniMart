@@ -503,6 +503,137 @@ const addDeliveryAddress = async (req, res) => {
   }
 };
 
+const getDeliveryAddresses = async (req, res) => {
+  try {
+    const buyer = await Buyer.findById(req.buyer.id);
+    if (!buyer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Buyer not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        addresses: buyer.deliveryAddresses
+      }
+    });
+  } catch (error) {
+    console.error('Get delivery addresses error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching delivery addresses'
+    });
+  }
+};
+
+const updateDeliveryAddress = async (req, res) => {
+  try {
+    const { addressId } = req.params;
+    const updates = { ...req.body };
+
+    const buyer = await Buyer.findById(req.buyer.id);
+    if (!buyer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Buyer not found'
+      });
+    }
+
+    const address = buyer.deliveryAddresses.id(addressId);
+    if (!address) {
+      return res.status(404).json({
+        success: false,
+        message: 'Address not found'
+      });
+    }
+
+    const allowedFields = [
+      'label',
+      'street',
+      'city',
+      'state',
+      'zipCode',
+      'country',
+      'instructions',
+      'isDefault',
+      'coordinates'
+    ];
+
+    allowedFields.forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(updates, field)) {
+        address[field] = updates[field];
+      }
+    });
+
+    // If set as default, unset others
+    if (address.isDefault) {
+      buyer.deliveryAddresses.forEach((addr) => {
+        if (addr._id.toString() !== addressId.toString()) {
+          addr.isDefault = false;
+        }
+      });
+    }
+
+    await buyer.save();
+
+    res.json({
+      success: true,
+      message: 'Delivery address updated successfully',
+      data: {
+        address,
+        addresses: buyer.deliveryAddresses
+      }
+    });
+  } catch (error) {
+    console.error('Update delivery address error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating delivery address'
+    });
+  }
+};
+
+const deleteDeliveryAddress = async (req, res) => {
+  try {
+    const { addressId } = req.params;
+
+    const buyer = await Buyer.findById(req.buyer.id);
+    if (!buyer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Buyer not found'
+      });
+    }
+
+    const address = buyer.deliveryAddresses.id(addressId);
+    if (!address) {
+      return res.status(404).json({
+        success: false,
+        message: 'Address not found'
+      });
+    }
+
+    address.deleteOne();
+    await buyer.save();
+
+    res.json({
+      success: true,
+      message: 'Delivery address deleted successfully',
+      data: {
+        addresses: buyer.deliveryAddresses
+      }
+    });
+  } catch (error) {
+    console.error('Delete delivery address error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting delivery address'
+    });
+  }
+};
+
 // Get all buyers (admin function)
 const getAllBuyers = async (req, res) => {
   try {
@@ -576,6 +707,9 @@ module.exports = {
   addToWishlist,
   removeFromWishlist,
   addDeliveryAddress,
+  getDeliveryAddresses,
+  updateDeliveryAddress,
+  deleteDeliveryAddress,
   getAllBuyers,
   deleteBuyer
 };

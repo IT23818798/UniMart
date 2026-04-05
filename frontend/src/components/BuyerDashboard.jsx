@@ -58,25 +58,376 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   const [orderQuantity, setOrderQuantity] = useState(1);
   const [showPaymentGateway, setShowPaymentGateway] = useState(false);
 
+  // Profile CRUD state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileForm, setProfileForm] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    dateOfBirth: '',
+    gender: '',
+    addressStreet: '',
+    addressCity: '',
+    addressState: '',
+    addressZipCode: '',
+    addressCountry: ''
+  });
+
+  // Address CRUD state
+  const [addressesLoading, setAddressesLoading] = useState(false);
+  const [addressError, setAddressError] = useState('');
+  const [addressSaving, setAddressSaving] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState(null);
+  const [addressForm, setAddressForm] = useState({
+    label: '',
+    street: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    country: 'USA',
+    instructions: '',
+    isDefault: false
+  });
+
   // Notification counts
   const [unreadMessages, setUnreadMessages] = useState(0);
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('buyerToken');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  const formatAddress = (address) => {
+    if (!address) return 'Not provided';
+
+    if (typeof address === 'string') {
+      const trimmed = address.trim();
+      return trimmed ? trimmed : 'Not provided';
+    }
+
+    const parts = [
+      address.street,
+      address.city,
+      address.state,
+      address.zipCode,
+      address.country
+    ].filter(Boolean);
+
+    return parts.length ? parts.join(', ') : 'Not provided';
+  };
+
+  const sanitizeNameInput = (value) => value.replace(/[^a-zA-Z\s]/g, '').replace(/\s+/g, ' ');
+  const sanitizeDigits = (value, maxLen) => value.replace(/\D/g, '').slice(0, maxLen);
+  const isValidName = (value) => /^[A-Za-z]+(?:\s[A-Za-z]+)*$/.test((value || '').trim());
+  const isValidSriLankaPhone = (value) => /^0\d{9}$/.test(value || '');
+  const isValidZip5 = (value) => /^\d{5}$/.test(value || '');
+
+  const syncBuyerToLocalStorage = (nextBuyer) => {
+    try {
+      localStorage.setItem('buyerData', JSON.stringify(nextBuyer));
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const hydrateProfileFormFromBuyer = (b) => {
+    setProfileForm({
+      firstName: b?.firstName || '',
+      lastName: b?.lastName || '',
+      phone: b?.phone || '',
+      dateOfBirth: b?.dateOfBirth ? new Date(b.dateOfBirth).toISOString().slice(0, 10) : '',
+      gender: b?.gender || '',
+      addressStreet: b?.address?.street || '',
+      addressCity: b?.address?.city || '',
+      addressState: b?.address?.state || '',
+      addressZipCode: b?.address?.zipCode || '',
+      addressCountry: b?.address?.country || 'USA'
+    });
+  };
+
+  const startEditProfile = () => {
+    setProfileError('');
+    hydrateProfileFormFromBuyer(buyer);
+    setIsEditingProfile(true);
+  };
+
+  const cancelEditProfile = () => {
+    setProfileError('');
+    setIsEditingProfile(false);
+    hydrateProfileFormFromBuyer(buyer);
+  };
+
+  const saveProfile = async () => {
+    try {
+      setProfileSaving(true);
+      setProfileError('');
+
+      const payload = {
+        firstName: profileForm.firstName,
+        lastName: profileForm.lastName,
+        phone: profileForm.phone,
+        gender: profileForm.gender || undefined,
+        dateOfBirth: profileForm.dateOfBirth || undefined,
+        address: {
+          street: profileForm.addressStreet || undefined,
+          city: profileForm.addressCity || undefined,
+          state: profileForm.addressState || undefined,
+          zipCode: profileForm.addressZipCode || undefined,
+          country: profileForm.addressCountry || undefined
+        }
+      };
+
+      const response = await fetch('http://localhost:5000/api/buyer/profile', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || `Failed to update profile (${response.status})`);
+      }
+
+      setBuyer(data.data.buyer);
+      syncBuyerToLocalStorage(data.data.buyer);
+      setIsEditingProfile(false);
+      await refreshBuyerProfile({ silent: true });
+    } catch (e) {
+      console.error('Save profile error:', e);
+      setProfileError(e?.message || 'Failed to update profile');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const resetAddressForm = () => {
+    setEditingAddressId(null);
+    setAddressError('');
+    setAddressForm({
+      label: '',
+      street: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: 'USA',
+      instructions: '',
+      isDefault: false
+    });
+  };
+
+  const loadAddresses = async () => {
+    try {
+      setAddressesLoading(true);
+      setAddressError('');
+      const response = await fetch('http://localhost:5000/api/buyer/addresses', {
+        credentials: 'include',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || `Failed to load addresses (${response.status})`);
+      }
+
+      setBuyer((prev) => {
+        if (!prev) return prev;
+        const nextBuyer = { ...prev, deliveryAddresses: data.data.addresses };
+        syncBuyerToLocalStorage(nextBuyer);
+        return nextBuyer;
+      });
+    } catch (e) {
+      console.error('Load addresses error:', e);
+      setAddressError(e?.message || 'Failed to load addresses');
+    } finally {
+      setAddressesLoading(false);
+    }
+  };
+
+  const startEditAddress = (addr) => {
+    setAddressError('');
+    setEditingAddressId(addr._id);
+    setAddressForm({
+      label: addr.label || '',
+      street: addr.street || '',
+      city: addr.city || '',
+      state: addr.state || '',
+      zipCode: addr.zipCode || '',
+      country: addr.country || 'USA',
+      instructions: addr.instructions || '',
+      isDefault: !!addr.isDefault
+    });
+  };
+
+  const saveAddress = async () => {
+    try {
+      setAddressSaving(true);
+      setAddressError('');
+
+      const isEdit = !!editingAddressId;
+      const url = isEdit
+        ? `http://localhost:5000/api/buyer/addresses/${editingAddressId}`
+        : 'http://localhost:5000/api/buyer/addresses';
+
+      const response = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
+        credentials: 'include',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(addressForm)
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || `Failed to save address (${response.status})`);
+      }
+
+      const nextAddresses = data?.data?.addresses;
+      if (Array.isArray(nextAddresses)) {
+        setBuyer((prev) => {
+          if (!prev) return prev;
+          const nextBuyer = { ...prev, deliveryAddresses: nextAddresses };
+          syncBuyerToLocalStorage(nextBuyer);
+          return nextBuyer;
+        });
+      } else {
+        await loadAddresses();
+      }
+
+      resetAddressForm();
+    } catch (e) {
+      console.error('Save address error:', e);
+      setAddressError(e?.message || 'Failed to save address');
+    } finally {
+      setAddressSaving(false);
+    }
+  };
+
+  const deleteAddress = async (addressId) => {
+    try {
+      if (!window.confirm('Delete this address?')) return;
+
+      setAddressSaving(true);
+      setAddressError('');
+
+      const response = await fetch(`http://localhost:5000/api/buyer/addresses/${addressId}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || `Failed to delete address (${response.status})`);
+      }
+
+      const nextAddresses = data?.data?.addresses;
+      setBuyer((prev) => {
+        if (!prev) return prev;
+        const nextBuyer = { ...prev, deliveryAddresses: Array.isArray(nextAddresses) ? nextAddresses : (prev.deliveryAddresses || []).filter(a => a._id !== addressId) };
+        syncBuyerToLocalStorage(nextBuyer);
+        return nextBuyer;
+      });
+
+      if (editingAddressId === addressId) {
+        resetAddressForm();
+      }
+    } catch (e) {
+      console.error('Delete address error:', e);
+      setAddressError(e?.message || 'Failed to delete address');
+    } finally {
+      setAddressSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (initialBuyer) {
       setBuyer(initialBuyer);
       fetchDashboardStats();
-    } else {
-      fetchBuyerData();
+      // Always refresh profile from backend (storedData may be stale/incomplete)
+      refreshBuyerProfile({ silent: true });
+      return;
     }
+
+    fetchBuyerData();
   }, [initialBuyer]);
+
+  useEffect(() => {
+    if (!buyer) return;
+    // Keep the form in sync when switching into profile tab (without overwriting active edits)
+    if (activeTab === 'profile' && !isEditingProfile) {
+      hydrateProfileFormFromBuyer(buyer);
+    }
+
+    if (activeTab === 'addresses') {
+      loadAddresses();
+    }
+  }, [activeTab, buyer, isEditingProfile]);
+
+  const refreshBuyerProfile = async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+      const response = await fetch('http://localhost:5000/api/buyer/profile', {
+        credentials: 'include',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch buyer profile (${response.status})`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setBuyer(data.data.buyer);
+      }
+    } catch (error) {
+      console.error('Error refreshing buyer profile:', error);
+      // If unauthorized, trigger logout
+      if (String(error?.message || '').includes('401')) {
+        handleLogout();
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
 
   const fetchBuyerData = async () => {
     try {
       setLoading(true);
       
       const [profileResponse, statsResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/buyer/profile', { credentials: 'include' }),
-        fetch('http://localhost:5000/api/buyer/dashboard/stats', { credentials: 'include' })
+        fetch('http://localhost:5000/api/buyer/profile', {
+          credentials: 'include',
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          }
+        }),
+        fetch('http://localhost:5000/api/buyer/dashboard/stats', {
+          credentials: 'include',
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json'
+          }
+        })
       ]);
 
       if (!profileResponse.ok || !statsResponse.ok) {
@@ -106,7 +457,13 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/buyer/dashboard/stats', { credentials: 'include' });
+      const response = await fetch('http://localhost:5000/api/buyer/dashboard/stats', {
+        credentials: 'include',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        }
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -571,6 +928,495 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
                 setIsChatOpen(true);
               }}
             />
+          )}
+
+          {activeTab === 'addresses' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Delivery Addresses</h3>
+                  <button
+                    type="button"
+                    onClick={resetAddressForm}
+                    className="text-sm font-medium text-blue-700 hover:text-blue-800"
+                  >
+                    Add New
+                  </button>
+                </div>
+
+                {addressError && (
+                  <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                    {addressError}
+                  </div>
+                )}
+
+                {addressesLoading ? (
+                  <p className="text-gray-600">Loading addresses...</p>
+                ) : (
+                  <div className="space-y-3">
+                    {(buyer?.deliveryAddresses || []).length === 0 && (
+                      <p className="text-gray-600">No delivery addresses yet.</p>
+                    )}
+                    {(buyer?.deliveryAddresses || []).map((addr) => (
+                      <div key={addr._id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-gray-900 truncate">{addr.label}</p>
+                              {addr.isDefault && (
+                                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Default</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {[addr.street, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean).join(', ')}
+                            </p>
+                            {addr.instructions && (
+                              <p className="text-xs text-gray-500 mt-1">{addr.instructions}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => startEditAddress(addr)}
+                              className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 hover:bg-gray-100"
+                              disabled={addressSaving}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteAddress(addr._id)}
+                              className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm hover:bg-red-700"
+                              disabled={addressSaving}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {editingAddressId ? 'Edit Address' : 'Add Address'}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Label</label>
+                    <input
+                      value={addressForm.label}
+                      onChange={(e) => setAddressForm((p) => ({ ...p, label: e.target.value }))}
+                      className="mt-1 w-full border border-gray-300 px-3 py-2 rounded-lg"
+                      placeholder="Home / Office"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-6">
+                    <input
+                      id="isDefault"
+                      type="checkbox"
+                      checked={addressForm.isDefault}
+                      onChange={(e) => setAddressForm((p) => ({ ...p, isDefault: e.target.checked }))}
+                      className="h-4 w-4"
+                    />
+                    <label htmlFor="isDefault" className="text-sm text-gray-700">Set as default</label>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700">Street</label>
+                    <input
+                      value={addressForm.street}
+                      onChange={(e) => setAddressForm((p) => ({ ...p, street: e.target.value }))}
+                      className="mt-1 w-full border border-gray-300 px-3 py-2 rounded-lg"
+                      placeholder="123 Main St"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">City</label>
+                    <input
+                      value={addressForm.city}
+                      onChange={(e) => setAddressForm((p) => ({ ...p, city: e.target.value }))}
+                      className="mt-1 w-full border border-gray-300 px-3 py-2 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">State</label>
+                    <input
+                      value={addressForm.state}
+                      onChange={(e) => setAddressForm((p) => ({ ...p, state: e.target.value }))}
+                      className="mt-1 w-full border border-gray-300 px-3 py-2 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Zip Code</label>
+                    <input
+                      value={addressForm.zipCode}
+                      onChange={(e) => setAddressForm((p) => ({ ...p, zipCode: sanitizeDigits(e.target.value, 5) }))}
+                      className="mt-1 w-full border border-gray-300 px-3 py-2 rounded-lg"
+                      inputMode="numeric"
+                      maxLength={5}
+                      pattern="\d{5}"
+                      title="ZIP code must be exactly 5 numeric digits"
+                      placeholder="5-digit ZIP"
+                    />
+                    {addressForm.zipCode && !isValidZip5(addressForm.zipCode) && (
+                      <p className="text-xs text-red-600 mt-1">ZIP code must be exactly 5 digits.</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Country</label>
+                    <input
+                      value={addressForm.country}
+                      onChange={(e) => setAddressForm((p) => ({ ...p, country: e.target.value }))}
+                      className="mt-1 w-full border border-gray-300 px-3 py-2 rounded-lg"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700">Instructions</label>
+                    <input
+                      value={addressForm.instructions}
+                      onChange={(e) => setAddressForm((p) => ({ ...p, instructions: e.target.value }))}
+                      className="mt-1 w-full border border-gray-300 px-3 py-2 rounded-lg"
+                      placeholder="Optional delivery instructions"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  {editingAddressId && (
+                    <button
+                      type="button"
+                      onClick={resetAddressForm}
+                      className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      disabled={addressSaving}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={saveAddress}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                    disabled={
+                      addressSaving ||
+                      !addressForm.label ||
+                      !addressForm.street ||
+                      !addressForm.city ||
+                      !addressForm.state ||
+                      !isValidZip5(addressForm.zipCode)
+                    }
+                  >
+                    {addressSaving ? 'Saving...' : (editingAddressId ? 'Save Changes' : 'Add Address')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'profile' && buyer && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Blue Banner */}
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 h-32 w-full relative">
+                <div className="absolute -bottom-12 left-6 border-4 border-white rounded-full bg-white">
+                  <div className="bg-blue-100 rounded-full h-24 w-24 flex items-center justify-center text-blue-600 text-3xl overflow-hidden">
+                    {buyer.profileImage ? (
+                      <img
+                        src={buyer.profileImage}
+                        alt="Profile"
+                        className="h-24 w-24 object-cover"
+                      />
+                    ) : (
+                      <FaUser />
+                    )}
+                  </div>
+                </div>
+                <div className="absolute bottom-4 right-6 text-white text-right">
+                  <p className="text-sm opacity-80">Buyer Dashboard</p>
+                  <p className="font-semibold text-lg">{buyer.loyaltyLevel || 'Member'}</p>
+                </div>
+              </div>
+
+              <div className="pt-16 pb-6 px-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-8">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {buyer.fullName || `${buyer.firstName || ''} ${buyer.lastName || ''}`.trim() || 'Buyer'}
+                    </h2>
+                    <p className="text-gray-500 mt-1">ID: {buyer._id}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getLoyaltyLevelColor(buyer.loyaltyLevel)}`}>
+                      <FaMedal className="mr-1 h-4 w-4" />
+                      {buyer.loyaltyLevel || 'Bronze'}
+                    </span>
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getMembershipColor(buyer.membership?.type || 'basic')}`}>
+                      <FaGift className="mr-1 h-4 w-4" />
+                      {buyer.membership?.type || 'basic'}
+                    </span>
+                  </div>
+                </div>
+
+                {profileError && (
+                  <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                    {profileError}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 mb-6">
+                  {!isEditingProfile ? (
+                    <button
+                      type="button"
+                      onClick={startEditProfile}
+                      className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      Edit Profile
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={cancelEditProfile}
+                        className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        disabled={profileSaving}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveProfile}
+                        className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-60"
+                        disabled={
+                          profileSaving ||
+                          !isValidName(profileForm.firstName) ||
+                          !isValidName(profileForm.lastName) ||
+                          !isValidSriLankaPhone(profileForm.phone) ||
+                          (profileForm.addressZipCode ? !isValidZip5(profileForm.addressZipCode) : false)
+                        }
+                      >
+                        {profileSaving ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Personal Information */}
+                  <div className="bg-gray-50 p-6 rounded-lg border border-gray-100">
+                    <div className="flex items-center mb-4 text-blue-700">
+                      <FaUser className="mr-2" />
+                      <h3 className="text-lg font-semibold">Personal Information</h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">First Name</p>
+                        {isEditingProfile ? (
+                          <input
+                            value={profileForm.firstName}
+                            onChange={(e) => setProfileForm((p) => ({ ...p, firstName: sanitizeNameInput(e.target.value) }))}
+                            className="w-full bg-white px-3 py-2 rounded border border-gray-200"
+                            inputMode="text"
+                            autoComplete="given-name"
+                            placeholder="e.g., Nimal"
+                          />
+                        ) : (
+                          <p className="text-gray-900 font-medium bg-white px-3 py-2 rounded border border-gray-200">{buyer.firstName || '—'}</p>
+                        )}
+                        {isEditingProfile && profileForm.firstName && !isValidName(profileForm.firstName) && (
+                          <p className="text-xs text-red-600 mt-1">Only letters and spaces are allowed.</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Last Name</p>
+                        {isEditingProfile ? (
+                          <input
+                            value={profileForm.lastName}
+                            onChange={(e) => setProfileForm((p) => ({ ...p, lastName: sanitizeNameInput(e.target.value) }))}
+                            className="w-full bg-white px-3 py-2 rounded border border-gray-200"
+                            inputMode="text"
+                            autoComplete="family-name"
+                            placeholder="e.g., Perera"
+                          />
+                        ) : (
+                          <p className="text-gray-900 font-medium bg-white px-3 py-2 rounded border border-gray-200">{buyer.lastName || '—'}</p>
+                        )}
+                        {isEditingProfile && profileForm.lastName && !isValidName(profileForm.lastName) && (
+                          <p className="text-xs text-red-600 mt-1">Only letters and spaces are allowed.</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Email Address</p>
+                        <p className="text-gray-900 font-medium bg-white px-3 py-2 rounded border border-gray-200 flex items-center gap-2">
+                          <FaEnvelope className="text-gray-400" />
+                          <span className="truncate">{buyer.email || '—'}</span>
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Phone Number</p>
+                        {isEditingProfile ? (
+                          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded border border-gray-200">
+                            <FaPhone className="text-gray-400" />
+                            <input
+                              value={profileForm.phone}
+                              onChange={(e) => setProfileForm((p) => ({ ...p, phone: sanitizeDigits(e.target.value, 10) }))}
+                              className="flex-1 outline-none"
+                              type="tel"
+                              inputMode="numeric"
+                              maxLength={10}
+                              pattern="0\d{9}"
+                              title="Phone must be exactly 10 digits and start with 0 (e.g., 07XXXXXXXX)"
+                              placeholder="07XXXXXXXX"
+                              autoComplete="tel"
+                            />
+                          </div>
+                        ) : (
+                          <p className="text-gray-900 font-medium bg-white px-3 py-2 rounded border border-gray-200 flex items-center gap-2">
+                            <FaPhone className="text-gray-400" />
+                            <span>{buyer.phone || 'Not provided'}</span>
+                          </p>
+                        )}
+                        {isEditingProfile && profileForm.phone && !isValidSriLankaPhone(profileForm.phone) && (
+                          <p className="text-xs text-red-600 mt-1">Enter 10 digits starting with 0 (e.g., 07XXXXXXXX).</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Address</p>
+                        {isEditingProfile ? (
+                          <div className="space-y-2">
+                            <input
+                              value={profileForm.addressStreet}
+                              onChange={(e) => setProfileForm((p) => ({ ...p, addressStreet: e.target.value }))}
+                              className="w-full bg-white px-3 py-2 rounded border border-gray-200"
+                              placeholder="Street"
+                            />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <input
+                                value={profileForm.addressCity}
+                                onChange={(e) => setProfileForm((p) => ({ ...p, addressCity: e.target.value }))}
+                                className="w-full bg-white px-3 py-2 rounded border border-gray-200"
+                                placeholder="City"
+                              />
+                              <input
+                                value={profileForm.addressState}
+                                onChange={(e) => setProfileForm((p) => ({ ...p, addressState: e.target.value }))}
+                                className="w-full bg-white px-3 py-2 rounded border border-gray-200"
+                                placeholder="State"
+                              />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <input
+                                value={profileForm.addressZipCode}
+                                onChange={(e) => setProfileForm((p) => ({ ...p, addressZipCode: sanitizeDigits(e.target.value, 5) }))}
+                                className="w-full bg-white px-3 py-2 rounded border border-gray-200"
+                                inputMode="numeric"
+                                maxLength={5}
+                                pattern="\d{5}"
+                                title="ZIP code must be exactly 5 numeric digits"
+                                placeholder="ZIP Code (5 digits)"
+                              />
+                              <input
+                                value={profileForm.addressCountry}
+                                onChange={(e) => setProfileForm((p) => ({ ...p, addressCountry: e.target.value }))}
+                                className="w-full bg-white px-3 py-2 rounded border border-gray-200"
+                                placeholder="Country"
+                              />
+                            </div>
+                            {profileForm.addressZipCode && !isValidZip5(profileForm.addressZipCode) && (
+                              <p className="text-xs text-red-600">ZIP code must be exactly 5 digits.</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-gray-900 font-medium bg-white px-3 py-2 rounded border border-gray-200 min-h-[42px] flex items-start gap-2">
+                            <FaMapMarkerAlt className="text-gray-400 mt-0.5" />
+                            <span>{formatAddress(buyer.address)}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Date of Birth</p>
+                        {isEditingProfile ? (
+                          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded border border-gray-200">
+                            <FaCalendarAlt className="text-gray-400" />
+                            <input
+                              type="date"
+                              value={profileForm.dateOfBirth}
+                              onChange={(e) => setProfileForm((p) => ({ ...p, dateOfBirth: e.target.value }))}
+                              className="flex-1 outline-none"
+                            />
+                          </div>
+                        ) : (
+                          <p className="text-gray-900 font-medium bg-white px-3 py-2 rounded border border-gray-200 flex items-center gap-2">
+                            <FaCalendarAlt className="text-gray-400" />
+                            <span>{buyer.dateOfBirth ? new Date(buyer.dateOfBirth).toLocaleDateString() : 'Not provided'}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Gender</p>
+                        {isEditingProfile ? (
+                          <select
+                            value={profileForm.gender}
+                            onChange={(e) => setProfileForm((p) => ({ ...p, gender: e.target.value }))}
+                            className="w-full bg-white px-3 py-2 rounded border border-gray-200"
+                          >
+                            <option value="">Prefer not to say</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                            <option value="prefer_not_to_say">Prefer not to say</option>
+                          </select>
+                        ) : (
+                          <p className="text-gray-900 font-medium bg-white px-3 py-2 rounded border border-gray-200">
+                            {buyer.gender || 'Not provided'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Account Details */}
+                  <div className="bg-gray-50 p-6 rounded-lg border border-gray-100">
+                    <div className="flex items-center mb-4 text-blue-700">
+                      <FaCog className="mr-2" />
+                      <h3 className="text-lg font-semibold">Account Details</h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Account State</p>
+                        <p className={`font-medium px-3 py-2 rounded border flex items-center ${buyer.isActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                          {buyer.isActive ? '✅ Active' : '🚫 Inactive'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Email Verified</p>
+                        <p className={`font-medium px-3 py-2 rounded border ${buyer.isEmailVerified ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-800 border-yellow-200'}`}>
+                          {buyer.isEmailVerified ? '✅ Verified' : '⚠️ Not verified'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Phone Verified</p>
+                        <p className={`font-medium px-3 py-2 rounded border ${buyer.isPhoneVerified ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-800 border-yellow-200'}`}>
+                          {buyer.isPhoneVerified ? '✅ Verified' : '⚠️ Not verified'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Loyalty Points</p>
+                        <p className="text-gray-900 font-medium bg-white px-3 py-2 rounded border border-gray-200">
+                          {dashboardStats?.buyerInfo?.loyaltyPoints ?? buyer?.purchaseStats?.loyaltyPoints ?? 0}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Member Since</p>
+                        <p className="text-gray-900 font-medium bg-white px-3 py-2 rounded border border-gray-200">
+                          {buyer.createdAt ? new Date(buyer.createdAt).toLocaleDateString() : '—'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </main>
       </div>

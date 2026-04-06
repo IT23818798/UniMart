@@ -102,6 +102,7 @@ exports.createProduct = async (req, res) => {
 // Get all products (Public/Buyer)
 exports.getAllProducts = async (req, res) => {
   try {
+    console.log("Starting getAllProducts");
     const { keyword, category, page = 1, limit = 12 } = req.query;
     const query = { status: 'active' };
 
@@ -118,16 +119,21 @@ exports.getAllProducts = async (req, res) => {
 
     const skip = (page - 1) * limit;
 
+    console.time("Product.find");
     const products = await Product.find(query)
-      .select('title price category subcategory condition availability location tags images seller status description stock rating numOfReviews createdAt')
+      .select('title price category subcategory condition availability location tags seller status description stock rating numOfReviews createdAt')
       .populate('seller', 'businessName firstName lastName')
       .sort('-createdAt')
       .skip(skip)
       .limit(Number(limit))
       .lean();
+    console.timeEnd("Product.find");
 
+    console.time("Product.countDocuments");
     const totalProducts = await Product.countDocuments(query);
+    console.timeEnd("Product.countDocuments");
 
+    console.time("res.json");
     res.status(200).json({ 
       success: true, 
       data: products, 
@@ -136,6 +142,8 @@ exports.getAllProducts = async (req, res) => {
       pagesCount: Math.ceil(totalProducts / limit),
       currentPage: Number(page)
     });
+    console.timeEnd("res.json");
+    console.log("Response fully sent");
   } catch (error) {
     console.error('Get all products error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -390,5 +398,43 @@ exports.deleteProduct = async (req, res) => {
   } catch (error) {
     console.error('Delete product error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Stream product thumbnail image
+exports.getProductThumbnail = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id).select('images').slice('images', 1).lean();
+
+    if (!product || !product.images || product.images.length === 0) {
+      return res.status(404).send('Not found');
+    }
+
+    const base64Str = product.images[0];
+    let imgBuffer;
+    let contentType = 'image/jpeg';
+    
+    if (base64Str.startsWith('data:image/')) {
+        const parts = base64Str.split(',');
+        if (parts.length === 2) {
+            const header = parts[0];
+            const mimeMatch = header.match(/data:(image\/[a-zA-Z0-9+]+);base64/);
+            if (mimeMatch) contentType = mimeMatch[1];
+            imgBuffer = Buffer.from(parts[1], 'base64');
+        } else {
+            return res.status(404).send('Invalid image data');
+        }
+    } else if (base64Str.startsWith('http')) {
+        return res.redirect(301, base64Str);
+    } else {
+        imgBuffer = Buffer.from(base64Str, 'base64');
+    }
+
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=864000'); // Cache for 10 days!
+    return res.send(imgBuffer);
+  } catch (error) {
+    console.error('Get product thumbnail error:', error);
+    res.status(500).send('Server Error');
   }
 };

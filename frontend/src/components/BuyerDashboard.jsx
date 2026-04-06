@@ -85,8 +85,8 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
       setLoading(true);
       
       const [profileResponse, statsResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/buyer/profile', getBuyerRequestOptions()),
-        fetch('http://localhost:5000/api/buyer/dashboard/stats', getBuyerRequestOptions())
+        fetch('http://127.0.0.1:5000/api/buyer/profile', getBuyerRequestOptions()),
+        fetch('http://127.0.0.1:5000/api/buyer/dashboard/stats', getBuyerRequestOptions())
       ]);
 
       if (!profileResponse.ok || !statsResponse.ok) {
@@ -116,7 +116,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/buyer/dashboard/stats', getBuyerRequestOptions());
+      const response = await fetch('http://127.0.0.1:5000/api/buyer/dashboard/stats', getBuyerRequestOptions());
 
       if (response.ok) {
         const data = await response.json();
@@ -133,7 +133,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:5000/api/buyer/logout', {
+      await fetch('http://127.0.0.1:5000/api/buyer/logout', {
         method: 'POST',
         ...getBuyerRequestOptions()
       });
@@ -686,7 +686,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
           onCancel={() => setShowPaymentGateway(false)}
           onPaymentSuccess={async () => {
             try {
-              const response = await fetch('http://localhost:5000/api/orders/buyer', {
+              const response = await fetch('http://127.0.0.1:5000/api/orders/buyer', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

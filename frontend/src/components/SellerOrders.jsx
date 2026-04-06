@@ -13,7 +13,7 @@ const SellerOrders = ({ seller }) => {
 
   const fetchOrders = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/orders/seller', {
+      const response = await fetch('http://127.0.0.1:5000/api/orders/seller', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
         }
@@ -31,7 +31,7 @@ const SellerOrders = ({ seller }) => {
 
   const saveStatus = async (orderId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/orders/seller/${orderId}/status`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/orders/seller/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -54,7 +54,7 @@ const SellerOrders = ({ seller }) => {
   const handleDelete = async (orderId) => {
     if (!window.confirm('Are you sure you want to delete this order?')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/orders/seller/${orderId}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/orders/seller/${orderId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`

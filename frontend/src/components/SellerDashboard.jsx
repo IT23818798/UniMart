@@ -47,9 +47,14 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
     try {
       setLoading(true);
       
+      const getAuthOptions = () => ({
+        credentials: 'include',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('sellerToken')}` }
+      });
+
       const [profileResponse, statsResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/seller/profile', { credentials: 'include' }),
-        fetch('http://localhost:5000/api/seller/dashboard/stats', { credentials: 'include' })
+        fetch('http://127.0.0.1:5000/api/seller/profile', getAuthOptions()),
+        fetch('http://127.0.0.1:5000/api/seller/dashboard/stats', getAuthOptions())
       ]);
 
       if (!profileResponse.ok || !statsResponse.ok) {
@@ -79,7 +84,10 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/seller/dashboard/stats', { credentials: 'include' });
+      const response = await fetch('http://127.0.0.1:5000/api/seller/dashboard/stats', { 
+        credentials: 'include',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('sellerToken')}` }
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -96,9 +104,10 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:5000/api/seller/logout', {
+      await fetch('http://127.0.0.1:5000/api/seller/logout', {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('sellerToken')}` }
       });
     } catch (error) {
       console.error('Logout error:', error);

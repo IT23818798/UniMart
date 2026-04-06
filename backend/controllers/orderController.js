@@ -68,6 +68,7 @@ exports.createOrder = async (req, res) => {
 exports.getBuyerOrders = async (req, res) => {
   try {
     const orders = await Order.find({ buyer: req.buyer.id })
+      .select('-orderItems.image') // Crucial for performance: avoid fetching huge embedded base64 strings
       .populate('seller', 'businessName')
       .sort('-createdAt');
 
@@ -82,6 +83,7 @@ exports.getBuyerOrders = async (req, res) => {
 exports.getSellerOrders = async (req, res) => {
   try {
     const orders = await Order.find({ seller: req.seller.id })
+      .select('-orderItems.image') // Crucial for performance: avoid fetching huge embedded base64 strings
       .populate('buyer', 'firstName lastName email')
       .sort('-createdAt');
 

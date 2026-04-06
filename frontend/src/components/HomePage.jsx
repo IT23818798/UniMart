@@ -570,7 +570,7 @@ const LoginPage = ({ loginType, onClose }) => {
     try {
       const endpoint = loginType === 'admin' ? '/api/admin/login' : `/api/${loginType}/login`;
       
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      const response = await fetch(`http://127.0.0.1:5000${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -827,7 +827,7 @@ const RegisterPage = ({ registerType, onClose }) => {
     try {
       const endpoint = registerType === 'admin' ? '/api/admin/register' : `/api/${registerType}/register`;
       
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      const response = await fetch(`http://127.0.0.1:5000${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

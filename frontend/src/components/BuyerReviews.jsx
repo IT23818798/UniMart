@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FaCheckCircle, FaEdit, FaExternalLinkAlt, FaRedo, FaSearch, FaStar, FaTrashAlt } from 'react-icons/fa';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'http://127.0.0.1:5000/api';
 
 const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
   const [reviews, setReviews] = useState([]);

@@ -16,7 +16,7 @@ const SellerProducts = ({ seller }) => {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/products/seller', {
+      const response = await fetch('http://127.0.0.1:5000/api/products/seller', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
         }
@@ -77,8 +77,8 @@ const SellerProducts = ({ seller }) => {
     e.preventDefault();
     try {
       const url = editingId
-        ? `http://localhost:5000/api/products/seller/${editingId}`
-        : 'http://localhost:5000/api/products/seller';
+        ? `http://127.0.0.1:5000/api/products/seller/${editingId}`
+        : 'http://127.0.0.1:5000/api/products/seller';
       const method = editingId ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -114,7 +114,7 @@ const SellerProducts = ({ seller }) => {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/products/seller/${id}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/products/seller/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`

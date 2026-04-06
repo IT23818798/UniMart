@@ -64,7 +64,7 @@ const MainApp = () => {
       }
 
       if (token) {
-        const response = await fetch('http://localhost:5000/api/admin/profile', {
+        const response = await fetch('http://127.0.0.1:5000/api/admin/profile', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -116,7 +116,7 @@ const MainApp = () => {
       }
 
       if (token) {
-        const response = await fetch('http://localhost:5000/api/seller/profile', {
+        const response = await fetch('http://127.0.0.1:5000/api/seller/profile', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -177,7 +177,7 @@ const MainApp = () => {
       // If we have a token, verify it with the API
       if (token) {
         console.log('Verifying buyer token with API');
-        const response = await fetch('http://localhost:5000/api/buyer/profile', {
+        const response = await fetch('http://127.0.0.1:5000/api/buyer/profile', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

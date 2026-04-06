@@ -47,7 +47,7 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
     try {
       setSellerLoading(true);
       setShowSellerPopup(true);
-      const response = await fetch(`http://localhost:5000/api/seller/info/${sellerId}`, getBuyerRequestOptions());
+      const response = await fetch(`http://127.0.0.1:5000/api/seller/info/${sellerId}`, getBuyerRequestOptions());
       const data = await response.json();
       if (data.success) {
         setSellerDetails(data.data);
@@ -61,7 +61,7 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
 
   const fetchProductDetails = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/products/${productId}`);
+      const response = await fetch(`http://127.0.0.1:5000/api/products/${productId}`);
       const data = await response.json();
       if (data.success) {
         setProduct(data.data);
@@ -87,8 +87,8 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
       setReviewError('');
       
       const url = editingReviewId 
-        ? `http://localhost:5000/api/products/${productId}/reviews/${editingReviewId}`
-        : `http://localhost:5000/api/products/${productId}/reviews`;
+        ? `http://127.0.0.1:5000/api/products/${productId}/reviews/${editingReviewId}`
+        : `http://127.0.0.1:5000/api/products/${productId}/reviews`;
       const method = editingReviewId ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -130,7 +130,7 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/products/${productId}/reviews/${reviewId}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/products/${productId}/reviews/${reviewId}`, {
         method: 'DELETE',
         ...getBuyerRequestOptions()
       });

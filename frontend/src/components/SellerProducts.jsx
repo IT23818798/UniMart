@@ -222,7 +222,7 @@ const SellerProducts = ({ seller }) => {
             {products.map(product => (
               <tr key={product._id} className="hover:bg-gray-50">
                 <td className="py-3 px-4 flex items-center gap-3">
-                  <img src={product.images[0] || 'https://via.placeholder.com/50'} alt={product.title} className="w-10 h-10 object-cover rounded" />
+                  <img src={product.images[0] || 'https://placehold.co/50x50'} alt={product.title} className="w-10 h-10 object-cover rounded" />
                   <span className="font-medium text-gray-900">{product.title}</span>
                 </td>
                 <td className="py-3 px-4 max-w-[150px] truncate text-gray-500" title={product.description}>

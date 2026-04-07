@@ -12,22 +12,56 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [buyer?._id, buyer?.id]);
+
+  const getRequestHeaders = () => {
+    const token = localStorage.getItem('buyerToken');
+    return {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+  };
 
   const fetchOrders = async () => {
+    const controller = new AbortController();
+    const requestTimeout = setTimeout(() => {
+      controller.abort();
+    }, 6000);
+
     try {
+      setLoading(true);
+
       const response = await fetch('http://localhost:5000/api/orders/buyer', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
-        }
+        headers: getRequestHeaders(),
+        credentials: 'include',
+        signal: controller.signal
       });
+
       const data = await response.json();
-      if (data.success) {
-        setOrders(data.data);
+
+      if (response.status === 401) {
+        localStorage.removeItem('buyerToken');
+        localStorage.removeItem('buyerData');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 400);
+        return;
       }
+
+      if (!response.ok || !data.success) {
+        // Keep orders view usable even if API responds with an error.
+        setOrders([]);
+        return;
+      }
+
+      setOrders(Array.isArray(data.data) ? data.data : []);
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      if (error.name !== 'AbortError') {
+        console.error('Error fetching orders:', error);
+      }
+      // Never block rendering on transient request issues.
+      setOrders((prevOrders) => (Array.isArray(prevOrders) ? prevOrders : []));
     } finally {
+      clearTimeout(requestTimeout);
       setLoading(false);
     }
   };
@@ -37,9 +71,8 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
     try {
       const response = await fetch(`http://localhost:5000/api/orders/buyer/${orderId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
-        }
+        headers: getRequestHeaders(),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -65,8 +98,9 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+          ...getRequestHeaders()
         },
+        credentials: 'include',
         body: JSON.stringify({ contactPhone: updatePhone, quantity: updateQuantity })
       });
       const data = await response.json();
@@ -149,7 +183,9 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
     doc.save(`Unimart_Receipt_${order._id.substring(0,8)}.pdf`);
   };
 
-  if (loading) return <div>Loading your orders...</div>;
+  if (loading) {
+    return <div className="text-gray-600">Loading your orders...</div>;
+  }
 
   return (
     <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100/50 p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
@@ -169,6 +205,13 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
           </thead>
           <tbody className="divide-y divide-gray-200 text-sm">
             {orders.map(order => (
+              (() => {
+                const items = Array.isArray(order.orderItems) ? order.orderItems : [];
+                const totalAmount = Number.isFinite(order.totalAmount)
+                  ? order.totalAmount
+                  : items.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+
+                return (
               <tr 
                 key={order._id} 
                 className="hover:bg-gray-50 cursor-pointer transition-colors"
@@ -177,13 +220,13 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
                 <td className="py-3 px-4 font-mono text-xs">{order._id.substring(0, 8)}...</td>
                 <td className="py-3 px-4">{order.seller?.businessName || 'Unknown'}</td>
                 <td className="py-3 px-4">
-                  {order.orderItems.map((item, i) => (
+                  {items.map((item, i) => (
                     <div key={i} className="text-gray-800">
                       <span className="font-medium">{item.title}</span> (x{item.quantity}) - <span className="text-gray-500">Rs {item.price}</span>
                     </div>
                   ))}
                 </td>
-                <td className="py-3 px-4 font-semibold text-blue-600">Rs {order.totalAmount.toFixed(2)}</td>
+                <td className="py-3 px-4 font-semibold text-blue-600">Rs {totalAmount.toFixed(2)}</td>
                 <td className="py-3 px-4">
                   <span className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize shadow-sm border ${
                       order.orderStatus === 'delivered' ? 'bg-green-50 text-green-700 border-green-200' :
@@ -204,6 +247,8 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
                   )}
                 </td>
               </tr>
+                );
+              })()
             ))}
             {orders.length === 0 && (
               <tr>

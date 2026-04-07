@@ -123,7 +123,7 @@ const PaymentGateway = ({ amount, product, quantity, contactPhone, onPaymentSucc
           <div className="flex flex-col h-full">
             <div className="flex items-start gap-4 mb-6 pb-6 border-b border-gray-200">
               <div className="w-24 h-24 bg-white rounded-lg border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0 relative">
-                 <img src={product.images?.[0] || 'https://via.placeholder.com/150'} alt={product.title} className="object-cover w-full h-full" />
+                 <img src={product.images?.[0] || 'https://placehold.co/150x150'} alt={product.title} className="object-cover w-full h-full" />
                  <span className="absolute -top-2 -right-2 bg-gray-600 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-white">
                    {quantity}
                  </span>

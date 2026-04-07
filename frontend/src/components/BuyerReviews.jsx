@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FaCheckCircle, FaEdit, FaExternalLinkAlt, FaRedo, FaSearch, FaStar, FaTrashAlt } from 'react-icons/fa';
+import { useDataCache } from '../hooks/useDataCache';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -8,13 +9,12 @@ const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
   const [summary, setSummary] = useState({ totalReviews: 0, averageRating: 0 });
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('newest');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [editingReviewId, setEditingReviewId] = useState(null);
   const [editRating, setEditRating] = useState(5);
   const [editComment, setEditComment] = useState('');
   const [savingReviewId, setSavingReviewId] = useState(null);
   const [deletingReviewId, setDeletingReviewId] = useState(null);
+  const [reviewError, setReviewError] = useState('');
 
   const token = localStorage.getItem('buyerToken');
 
@@ -28,34 +28,28 @@ const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
   });
 
   const fetchReviews = async () => {
-    try {
-      setLoading(true);
-      setError('');
+    const response = await fetch(`${API_BASE}/buyer/reviews`, requestOptions());
+    const data = await response.json();
 
-      const response = await fetch(`${API_BASE}/buyer/reviews`, requestOptions());
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to fetch your reviews');
-      }
-
-      const nextReviews = data.data?.reviews || [];
-      const nextSummary = data.data?.summary || { totalReviews: 0, averageRating: 0 };
-
-      setReviews(nextReviews);
-      setSummary(nextSummary);
-    } catch (err) {
-      console.error('Error fetching buyer reviews:', err);
-      setError(err.message || 'Unable to load your reviews');
-    } finally {
-      setLoading(false);
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to fetch your reviews');
     }
+
+    return data.data;
   };
 
+  const { data: cachedReviewsData, loading, error, refetch: refetchReviews } = useDataCache(
+    'buyer_reviews',
+    fetchReviews,
+    { ttl: 5 * 60 * 1000, autoRefresh: false }
+  );
+
   useEffect(() => {
-    fetchReviews();
-  }, []);
+    if (cachedReviewsData) {
+      setReviews(cachedReviewsData.reviews || []);
+      setSummary(cachedReviewsData.summary || { totalReviews: 0, averageRating: 0 });
+    }
+  }, [cachedReviewsData]);
 
   const filteredReviews = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -128,12 +122,12 @@ const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
   const handleUpdateReview = async (review) => {
     try {
       if (!editComment.trim()) {
-        setError('Comment is required to update a review.');
+        setReviewError('Comment is required to update a review.');
         return;
       }
 
       setSavingReviewId(review.reviewId);
-      setError('');
+      setReviewError('');
 
       const response = await fetch(`${API_BASE}/products/${review.productId}/reviews/${review.reviewId}`, {
         method: 'PUT',
@@ -177,7 +171,7 @@ const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
       cancelEdit();
     } catch (err) {
       console.error('Error updating review:', err);
-      setError(err.message || 'Failed to update review');
+      setReviewError(err.message || 'Failed to update review');
     } finally {
       setSavingReviewId(null);
     }
@@ -189,7 +183,7 @@ const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
       if (!ok) return;
 
       setDeletingReviewId(review.reviewId);
-      setError('');
+      setReviewError('');
 
       const response = await fetch(`${API_BASE}/products/${review.productId}/reviews/${review.reviewId}`, {
         method: 'DELETE',
@@ -213,7 +207,7 @@ const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
       }
     } catch (err) {
       console.error('Error deleting review:', err);
-      setError(err.message || 'Failed to delete review');
+      setReviewError(err.message || 'Failed to delete review');
     } finally {
       setDeletingReviewId(null);
     }
@@ -243,7 +237,7 @@ const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
       <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
         <p className="mb-4 font-semibold text-red-700">{error}</p>
         <button
-          onClick={fetchReviews}
+          onClick={refetchReviews}
           className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700"
         >
           <FaRedo /> Retry
@@ -303,9 +297,9 @@ const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
         </div>
       </div>
 
-      {error && (
+      {reviewError && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+          {reviewError}
         </div>
       )}
 
@@ -347,7 +341,7 @@ const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div className="flex gap-4">
                     <img
-                      src={review.productImage || 'https://via.placeholder.com/88x88?text=No+Image'}
+                      src={review.productImage || 'https://placehold.co/88x88?text=No+Image'}
                       alt={review.productTitle}
                       className="h-20 w-20 rounded-lg border border-gray-200 object-cover"
                     />

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FaStar, FaArrowLeft, FaShoppingCart, FaUserCircle, FaComment, FaPen, FaTrashAlt } from 'react-icons/fa';
+import { useDataCache } from '../hooks/useDataCache';
 
 const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller }) => {
   const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
@@ -38,10 +38,6 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
     return Boolean(reviewOwnerId && currentBuyerId && reviewOwnerId.toString() === currentBuyerId.toString());
   };
 
-  useEffect(() => {
-    fetchProductDetails();
-  }, [productId]);
-
   const fetchSellerDetails = async (sellerId) => {
     if (!sellerId) return;
     try {
@@ -60,18 +56,33 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
   };
 
   const fetchProductDetails = async () => {
-    try {
-      const response = await fetch(`http://localhost:5000/api/products/${productId}`);
-      const data = await response.json();
-      if (data.success) {
-        setProduct(data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching product details:', error);
-    } finally {
-      setLoading(false);
+    const response = await fetch(`http://localhost:5000/api/products/${productId}`);
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error('Failed to fetch product details');
     }
+
+    return data.data;
   };
+
+  const { data: cachedProduct, loading, error, refetch: refetchProduct } = useDataCache(
+    `product_detail_${productId}`,
+    fetchProductDetails,
+    { ttl: 5 * 60 * 1000, autoRefresh: false }
+  );
+
+  useEffect(() => {
+    if (cachedProduct) {
+      setProduct(cachedProduct);
+    }
+  }, [cachedProduct]);
+
+  useEffect(() => {
+    if (error) {
+      setReviewError(error.message || 'Failed to load product details');
+    }
+  }, [error]);
 
   const submitReview = async (e) => {
     e.preventDefault();
@@ -176,7 +187,7 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
         {/* Product Image */}
         <div className="bg-gray-50 rounded-xl flex items-center justify-center p-4 h-96">
           <img 
-            src={product.images?.[0] || 'https://via.placeholder.com/400x400?text=No+Image'} 
+            src={product.images?.[0] || 'https://placehold.co/400x400?text=No+Image'} 
             alt={product.title} 
             className="max-h-full max-w-full object-contain rounded-lg shadow-sm"
           />

@@ -1,4 +1,5 @@
 const Product = require('../models/Product');
+const Seller = require('../models/Seller');
 
 const recalculateReviewStats = (product) => {
   product.numOfReviews = product.reviews.length;
@@ -64,6 +65,19 @@ const normalizeTags = (value) => {
   );
 };
 
+const normalizeCoverImage = (images) => {
+  if (!Array.isArray(images) || images.length === 0) return '';
+
+  const firstImage = String(images[0] || '').trim();
+  if (!firstImage) return '';
+
+  // Data URLs are often very large and hurt listing query performance.
+  if (firstImage.startsWith('data:')) return '';
+
+  if (firstImage.length > 2048) return '';
+  return firstImage;
+};
+
 // Create a new product (Seller)
 exports.createProduct = async (req, res) => {
   try {
@@ -88,7 +102,8 @@ exports.createProduct = async (req, res) => {
       condition,
       availability,
       tags,
-      images: images || []
+      images: images || [],
+      coverImage: normalizeCoverImage(images || [])
     });
 
     await product.save();
@@ -104,6 +119,9 @@ exports.getAllProducts = async (req, res) => {
   try {
     const { keyword, category, page = 1, limit = 12 } = req.query;
     const query = { status: 'active' };
+    const currentPage = Math.max(1, Number(page) || 1);
+    const pageSize = Math.max(1, Number(limit) || 12);
+    const fetchLimit = pageSize + 1;
 
     if (keyword) {
       query.$or = [
@@ -116,25 +134,51 @@ exports.getAllProducts = async (req, res) => {
       query.category = category;
     }
 
-    const skip = (page - 1) * limit;
+    const skip = (currentPage - 1) * pageSize;
 
     const products = await Product.find(query)
-      .select('title price category subcategory condition availability location tags images seller status description stock rating numOfReviews createdAt')
-      .populate('seller', 'businessName firstName lastName')
+      .select('title price category condition availability tags coverImage seller status stock rating numOfReviews createdAt')
       .sort('-createdAt')
       .skip(skip)
-      .limit(Number(limit))
+      .limit(fetchLimit)
       .lean();
 
-    const totalProducts = await Product.countDocuments(query);
+    const sellerIds = [...new Set(
+      products
+        .map((product) => product.seller && product.seller.toString ? product.seller.toString() : String(product.seller || ''))
+        .filter(Boolean)
+    )];
+
+    const sellers = sellerIds.length > 0
+      ? await Seller.find({ _id: { $in: sellerIds } })
+          .select('businessName firstName lastName')
+          .lean()
+      : [];
+    const sellerMap = new Map(sellers.map((seller) => [String(seller._id), seller]));
+
+    const productsWithSellers = products.map((product) => {
+      const sellerId = product.seller && product.seller.toString ? product.seller.toString() : String(product.seller || '');
+      return {
+        ...product,
+        coverImage: product.coverImage || '',
+        seller: sellerMap.get(sellerId) || product.seller
+      };
+    });
+
+    const hasMore = productsWithSellers.length > pageSize;
+    const pageItems = hasMore ? productsWithSellers.slice(0, pageSize) : productsWithSellers;
+
+    const includeMeta = String(req.query.includeMeta || '').toLowerCase() === 'true';
+    const totalProducts = includeMeta ? await Product.countDocuments(query) : null;
 
     res.status(200).json({ 
       success: true, 
-      data: products, 
-      count: products.length,
+      data: pageItems, 
+      count: pageItems.length,
+      hasMore,
       totalProducts,
-      pagesCount: Math.ceil(totalProducts / limit),
-      currentPage: Number(page)
+      pagesCount: includeMeta ? Math.ceil(totalProducts / pageSize) : null,
+      currentPage
     });
   } catch (error) {
     console.error('Get all products error:', error);
@@ -147,8 +191,8 @@ exports.getProductById = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
       .populate('seller', 'businessName firstName lastName')
-      .populate('reviews.user', 'firstName lastName')
-      .populate('reviews.userId', 'firstName lastName');
+      .populate('reviews.userId', 'firstName lastName')
+      .lean();
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
@@ -205,7 +249,6 @@ exports.createProductReview = async (req, res) => {
     // Repopulate product to return back with new review including user details
     const updatedProduct = await Product.findById(req.params.id)
       .populate('seller', 'businessName firstName lastName')
-      .populate('reviews.user', 'firstName lastName')
       .populate('reviews.userId', 'firstName lastName');
 
     res.status(201).json({ success: true, message: 'Review added', data: updatedProduct });
@@ -262,7 +305,6 @@ exports.updateProductReview = async (req, res) => {
 
     const updatedProduct = await Product.findById(req.params.id)
        .populate('seller', 'businessName firstName lastName')
-       .populate('reviews.user', 'firstName lastName')
        .populate('reviews.userId', 'firstName lastName');
 
     res.status(200).json({ success: true, message: 'Review updated', data: updatedProduct });
@@ -300,7 +342,6 @@ exports.deleteProductReview = async (req, res) => {
 
     const updatedProduct = await Product.findById(req.params.id)
        .populate('seller', 'businessName firstName lastName')
-       .populate('reviews.user', 'firstName lastName')
        .populate('reviews.userId', 'firstName lastName');
 
     res.status(200).json({ success: true, message: 'Review deleted', data: updatedProduct });
@@ -313,7 +354,10 @@ exports.deleteProductReview = async (req, res) => {
 // Get products for logged-in seller
 exports.getSellerProducts = async (req, res) => {
   try {
-    const products = await Product.find({ seller: req.seller.id }).sort('-createdAt');
+    const products = await Product.find({ seller: req.seller.id })
+      .select('title price category condition availability images stock rating numOfReviews status createdAt')
+      .sort('-createdAt')
+      .lean();
     res.status(200).json({ success: true, data: products, count: products.length });
   } catch (error) {
     console.error('Get seller products error:', error);
@@ -355,6 +399,10 @@ exports.updateProduct = async (req, res) => {
 
     if (req.body.tags !== undefined) {
       updatePayload.tags = normalizeTags(req.body.tags) || [];
+    }
+
+    if (req.body.images !== undefined) {
+      updatePayload.coverImage = normalizeCoverImage(req.body.images || []);
     }
 
     // Validations

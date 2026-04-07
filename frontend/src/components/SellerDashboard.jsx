@@ -1,9 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import './SellerDashboard.css';
-import SellerProducts from './SellerProducts';
-import SellerOrders from './SellerOrders';
-import SellerReviews from './SellerReviews';
-import ChatPage from './ChatPage';
 import {
   FaUser,
   FaChartLine,
@@ -26,6 +22,17 @@ import {
   FaGlobe,
   FaEnvelope
 } from 'react-icons/fa';
+
+const SellerProducts = lazy(() => import('./SellerProducts'));
+const SellerOrders = lazy(() => import('./SellerOrders'));
+const SellerReviews = lazy(() => import('./SellerReviews'));
+const ChatPage = lazy(() => import('./ChatPage'));
+
+const SectionFallback = () => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center text-gray-500">
+    Loading section...
+  </div>
+);
 
 const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
   const [seller, setSeller] = useState(initialSeller);
@@ -416,17 +423,19 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
             </div>
           )}
 
-          {activeTab === 'products' && (
-            <SellerProducts seller={seller} />
-          )}
+          <Suspense fallback={<SectionFallback />}>
+            {activeTab === 'products' && (
+              <SellerProducts seller={seller} />
+            )}
 
-          {activeTab === 'orders' && (
-            <SellerOrders seller={seller} />
-          )}
+            {activeTab === 'orders' && (
+              <SellerOrders seller={seller} />
+            )}
 
-          {activeTab === 'reviews' && (
-            <SellerReviews seller={seller} />
-          )}
+            {activeTab === 'reviews' && (
+              <SellerReviews seller={seller} />
+            )}
+          </Suspense>
 
           {activeTab === 'profile' && seller && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

@@ -59,6 +59,11 @@ const productSchema = new mongoose.Schema({
   images: [{
     type: String
   }],
+  coverImage: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   status: {
     type: String,
     enum: ['active', 'inactive', 'out_of_stock'],
@@ -108,6 +113,11 @@ const productSchema = new mongoose.Schema({
   timestamps: true
 });
 
-productSchema.index({ status: 1 });
+productSchema.index({ status: 1, createdAt: -1 });
+productSchema.index({ seller: 1, createdAt: -1 });
+productSchema.index({ category: 1, status: 1, createdAt: -1 });
+productSchema.index({ title: 'text', description: 'text', tags: 'text' });
+productSchema.index({ 'reviews.user': 1, createdAt: -1 });
+productSchema.index({ 'reviews.userId': 1, createdAt: -1 });
 
 module.exports = mongoose.model('Product', productSchema);

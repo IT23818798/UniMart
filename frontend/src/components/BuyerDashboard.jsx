@@ -1,14 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import './BuyerDashboard.css';
-import BuyerProducts from './BuyerProducts';
-import BuyerOrders from './BuyerOrders';
-import BuyerReviews from './BuyerReviews';
-import ProductDetail from './ProductDetail';
-import OrderDetail from './OrderDetail';
-import PaymentGateway from './PaymentGateway';
 import UnimartLogo from './images/Unimart logo.png';
-import ChatPopup from './ChatPopup';
-import ChatPage from './ChatPage';
 import {
   FaUser,
   FaShoppingCart,
@@ -41,6 +33,75 @@ import {
   FaInstagram,
   FaArrowUp
 } from 'react-icons/fa';
+
+const BuyerProducts = lazy(() => import('./BuyerProducts'));
+const BuyerOrders = lazy(() => import('./BuyerOrders'));
+const BuyerReviews = lazy(() => import('./BuyerReviews'));
+const ProductDetail = lazy(() => import('./ProductDetail'));
+const OrderDetail = lazy(() => import('./OrderDetail'));
+const PaymentGateway = lazy(() => import('./PaymentGateway'));
+const ChatPopup = lazy(() => import('./ChatPopup'));
+const ChatPage = lazy(() => import('./ChatPage'));
+
+const SectionFallback = () => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center text-gray-500">
+    Loading section...
+  </div>
+);
+
+const createFallbackDashboardStats = (buyer = {}) => ({
+  buyerInfo: {
+    id: buyer._id || buyer.id || null,
+    fullName: buyer.fullName || `${buyer.firstName || ''} ${buyer.lastName || ''}`.trim() || 'Buyer',
+    loyaltyLevel: buyer.loyaltyLevel || 'bronze',
+    loyaltyPoints: 0,
+    membershipType: buyer.membership?.type || 'basic',
+    memberSince: buyer.createdAt || new Date().toISOString(),
+    lastLogin: buyer.lastLogin || null
+  },
+  purchaseMetrics: {
+    totalOrders: 0,
+    totalSpent: 0,
+    averageOrderValue: 0,
+    lastOrderDate: null,
+    favoriteCategories: [],
+    monthlySpending: 0
+  },
+  orderData: {
+    pendingOrders: 0,
+    deliveredOrders: 0,
+    cancelledOrders: 0,
+    returnedOrders: 0,
+    recentOrders: [],
+    upcomingDeliveries: []
+  },
+  wishlistStats: {
+    totalItems: 0,
+    recentlyAdded: [],
+    topCategories: [],
+    averagePrice: 0
+  },
+  sellerStats: {
+    favoriteSellers: 0,
+    recentPurchasesFrom: [],
+    topRatedSellers: []
+  },
+  recommendations: {
+    products: [],
+    sellers: [],
+    deals: [],
+    seasonal: []
+  },
+  notifications: {
+    unread: 0,
+    recent: []
+  },
+  savings: {
+    totalSavings: 0,
+    loyaltyRewards: 0,
+    membershipBenefits: []
+  }
+});
 
 const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   const [buyer, setBuyer] = useState(initialBuyer);
@@ -83,24 +144,37 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   const fetchBuyerData = async () => {
     try {
       setLoading(true);
-      
-      const [profileResponse, statsResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/buyer/profile', getBuyerRequestOptions()),
-        fetch('http://localhost:5000/api/buyer/dashboard/stats', getBuyerRequestOptions())
-      ]);
 
-      if (!profileResponse.ok || !statsResponse.ok) {
-        throw new Error('Failed to fetch buyer data');
+      const profileResponse = await fetch('http://localhost:5000/api/buyer/profile', getBuyerRequestOptions());
+
+      if (!profileResponse.ok) {
+        throw new Error('Failed to fetch buyer profile');
       }
 
       const profileData = await profileResponse.json();
-      const statsData = await statsResponse.json();
 
-      if (profileData.success && statsData.success) {
-        setBuyer(profileData.data.buyer);
-        setDashboardStats(statsData.data);
-      } else {
-        throw new Error('Invalid response format');
+      if (!profileData.success || !profileData.data?.buyer) {
+        throw new Error('Invalid buyer profile response');
+      }
+
+      const nextBuyer = profileData.data.buyer;
+      setBuyer(nextBuyer);
+
+      try {
+        const statsResponse = await fetch('http://localhost:5000/api/buyer/dashboard/stats', getBuyerRequestOptions());
+        const statsData = await statsResponse.json();
+
+        if (statsResponse.ok && statsData.success && statsData.data) {
+          setDashboardStats(statsData.data);
+          setError(null);
+        } else {
+          setDashboardStats(createFallbackDashboardStats(nextBuyer));
+          setError('Dashboard statistics are temporarily unavailable. Showing default values.');
+        }
+      } catch (statsError) {
+        console.error('Error fetching dashboard stats during profile load:', statsError);
+        setDashboardStats(createFallbackDashboardStats(nextBuyer));
+        setError('Dashboard statistics are temporarily unavailable. Showing default values.');
       }
     } catch (error) {
       console.error('Error fetching buyer data:', error);
@@ -116,16 +190,39 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
   const fetchDashboardStats = async () => {
     try {
+      setError(null);
       const response = await fetch('http://localhost:5000/api/buyer/dashboard/stats', getBuyerRequestOptions());
 
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
           setDashboardStats(data.data);
+          return;
         }
+        setError(data.message || 'Failed to load dashboard stats');
+        return;
       }
+
+      let responseMessage = 'Failed to load dashboard stats';
+      try {
+        const errorData = await response.json();
+        responseMessage = errorData.message || responseMessage;
+      } catch (_) {
+        // Ignore JSON parse failures for non-JSON responses.
+      }
+
+      if (response.status === 401) {
+        setError('Your session expired. Please log in again.');
+        handleLogout();
+        return;
+      }
+
+      setDashboardStats((prev) => prev || createFallbackDashboardStats(buyer || initialBuyer || {}));
+      setError(responseMessage);
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
+      setDashboardStats((prev) => prev || createFallbackDashboardStats(buyer || initialBuyer || {}));
+      setError('Unable to reach server while loading dashboard stats');
     } finally {
       setLoading(false);
     }
@@ -523,73 +620,89 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
             </div>
           )}
 
-          {/* Dynamic Tabs */}
-          {activeTab === 'products' && (
-            <BuyerProducts buyer={buyer} onAddToCart={(product) => {
-              setSelectedProduct(product);
-              setOrderQuantity(1);
-            }} onProductClick={(product) => {
-              setViewingProduct(product);
-              setActiveTab('product_detail');
-            }} />
+          {activeTab === 'overview' && !dashboardStats && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+              <div className="text-4xl mb-3">⚠️</div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Dashboard stats are unavailable</h3>
+              <p className="text-gray-600 mb-4">We could not load your overview data right now.</p>
+              <button
+                onClick={fetchDashboardStats}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
           )}
 
-          {activeTab === 'product_detail' && viewingProduct && (
-            <ProductDetail
-              productId={viewingProduct._id}
-              buyer={buyer}
-              onBack={() => setActiveTab('products')}
-              onAddToCart={(product) => {
+          {/* Dynamic Tabs */}
+          <Suspense fallback={<SectionFallback />}>
+            {activeTab === 'products' && (
+              <BuyerProducts buyer={buyer} onAddToCart={(product) => {
                 setSelectedProduct(product);
                 setOrderQuantity(1);
-              }}
-              onChatWithSeller={(sellerId, prodId) => {
-                setChatContext({ otherUserId: sellerId, otherUserType: 'Seller', productId: prodId });
-                setIsChatOpen(true);
-              }}
-            />
-          )}
-
-          {activeTab === 'messages' && (
-            <ChatPage 
-              currentUser={buyer} 
-              userType="buyer" 
-            />
-          )}
-
-          {activeTab === 'orders' && (
-            <BuyerOrders 
-              buyer={buyer} 
-              onOrderClick={(order) => {
-                setViewingOrder(order);
-                setActiveTab('order_detail');
-              }}
-            />
-          )}
-
-          {activeTab === 'reviews' && (
-            <BuyerReviews
-              onViewProduct={(productId) => {
-                setViewingProduct({ _id: productId });
+              }} onProductClick={(product) => {
+                setViewingProduct(product);
                 setActiveTab('product_detail');
-              }}
-              onBrowseProducts={() => {
-                setActiveTab('products');
-              }}
-            />
-          )}
+              }} />
+            )}
 
-          {activeTab === 'order_detail' && viewingOrder && (
-            <OrderDetail
-              order={viewingOrder}
-              onBack={() => setActiveTab('orders')}
-              onOrderUpdated={setViewingOrder}
-              onChatWithSeller={(sellerId, prodId) => {
-                setChatContext({ otherUserId: sellerId, otherUserType: 'Seller', productId: prodId });
-                setIsChatOpen(true);
-              }}
-            />
-          )}
+            {activeTab === 'product_detail' && viewingProduct && (
+              <ProductDetail
+                productId={viewingProduct._id}
+                buyer={buyer}
+                onBack={() => setActiveTab('products')}
+                onAddToCart={(product) => {
+                  setSelectedProduct(product);
+                  setOrderQuantity(1);
+                }}
+                onChatWithSeller={(sellerId, prodId) => {
+                  setChatContext({ otherUserId: sellerId, otherUserType: 'Seller', productId: prodId });
+                  setIsChatOpen(true);
+                }}
+              />
+            )}
+
+            {activeTab === 'messages' && (
+              <ChatPage 
+                currentUser={buyer} 
+                userType="buyer" 
+              />
+            )}
+
+            {activeTab === 'orders' && (
+              <BuyerOrders 
+                buyer={buyer} 
+                onOrderClick={(order) => {
+                  setViewingOrder(order);
+                  setActiveTab('order_detail');
+                }}
+              />
+            )}
+
+            {activeTab === 'reviews' && (
+              <BuyerReviews
+                onViewProduct={(productId) => {
+                  setViewingProduct({ _id: productId });
+                  setActiveTab('product_detail');
+                }}
+                onBrowseProducts={() => {
+                  setActiveTab('products');
+                }}
+              />
+            )}
+
+            {activeTab === 'order_detail' && viewingOrder && (
+              <OrderDetail
+                order={viewingOrder}
+                onBack={() => setActiveTab('orders')}
+                onOrderUpdated={setViewingOrder}
+                onChatWithSeller={(sellerId, prodId) => {
+                  setChatContext({ otherUserId: sellerId, otherUserType: 'Seller', productId: prodId });
+                  setIsChatOpen(true);
+                }}
+              />
+            )}
+          </Suspense>
         </main>
       </div>
 
@@ -606,7 +719,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
             
             <div className="p-6 pb-2">
                <div className="flex items-center gap-4 bg-white border border-gray-100 p-4 rounded-xl shadow-sm mb-6">
-                 <img src={selectedProduct.images[0] || 'https://via.placeholder.com/50'} alt={selectedProduct.title} className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                 <img src={selectedProduct.images[0] || 'https://placehold.co/50x50'} alt={selectedProduct.title} className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
                  <div>
                     <h3 className="font-bold text-gray-900 leading-tight">{selectedProduct.title}</h3>
                     <p className="text-indigo-600 font-extrabold text-lg mt-1">Rs {selectedProduct.price}</p>
@@ -677,61 +790,63 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
       )}
 
       {/* Payment Gateway Modal */}
-      {showPaymentGateway && selectedProduct && (
-        <PaymentGateway 
-          amount={selectedProduct.price * orderQuantity}
-          product={selectedProduct}
-          quantity={orderQuantity}
-          contactPhone={checkoutPhone}
-          onCancel={() => setShowPaymentGateway(false)}
-          onPaymentSuccess={async () => {
-            try {
-              const response = await fetch('http://localhost:5000/api/orders/buyer', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
-                },
-                body: JSON.stringify({
-                  orderItems: [{
-                    product: selectedProduct._id,
-                    title: selectedProduct.title,
-                    image: selectedProduct.images[0] || '',
-                    price: selectedProduct.price,
-                    quantity: orderQuantity
-                  }],
-                  contactPhone: checkoutPhone
-                })
-              });
-              const data = await response.json();
-              if (data.success) {
-                alert('Order placed successfully!');
-                setShowPaymentGateway(false);
-                setSelectedProduct(null);
-                setActiveTab('orders'); // Jump to orders view
-              } else {
-                alert('Error placing order: ' + data.message);
+      <Suspense fallback={null}>
+        {showPaymentGateway && selectedProduct && (
+          <PaymentGateway 
+            amount={selectedProduct.price * orderQuantity}
+            product={selectedProduct}
+            quantity={orderQuantity}
+            contactPhone={checkoutPhone}
+            onCancel={() => setShowPaymentGateway(false)}
+            onPaymentSuccess={async () => {
+              try {
+                const response = await fetch('http://localhost:5000/api/orders/buyer', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+                  },
+                  body: JSON.stringify({
+                    orderItems: [{
+                      product: selectedProduct._id,
+                      title: selectedProduct.title,
+                      image: selectedProduct.images[0] || '',
+                      price: selectedProduct.price,
+                      quantity: orderQuantity
+                    }],
+                    contactPhone: checkoutPhone
+                  })
+                });
+                const data = await response.json();
+                if (data.success) {
+                  alert('Order placed successfully!');
+                  setShowPaymentGateway(false);
+                  setSelectedProduct(null);
+                  setActiveTab('orders'); // Jump to orders view
+                } else {
+                  alert('Error placing order: ' + data.message);
+                  setShowPaymentGateway(false);
+                }
+              } catch (error) {
+                console.error('Order error:', error);
+                alert('Something went wrong placing the order');
                 setShowPaymentGateway(false);
               }
-            } catch (error) {
-              console.error('Order error:', error);
-              alert('Something went wrong placing the order');
-              setShowPaymentGateway(false);
-            }
-          }}
-        />
-      )}
+            }}
+          />
+        )}
 
-      {isChatOpen && chatContext && (
-        <ChatPopup 
-          currentUser={buyer}
-          userType="buyer"
-          otherUserId={chatContext.otherUserId}
-          otherUserType={chatContext.otherUserType}
-          initialProductId={chatContext.productId}
-          onClose={() => setIsChatOpen(false)}
-        />
-      )}
+        {isChatOpen && chatContext && (
+          <ChatPopup 
+            currentUser={buyer}
+            userType="buyer"
+            otherUserId={chatContext.otherUserId}
+            otherUserType={chatContext.otherUserType}
+            initialProductId={chatContext.productId}
+            onClose={() => setIsChatOpen(false)}
+          />
+        )}
+      </Suspense>
     </div>
   );
 };

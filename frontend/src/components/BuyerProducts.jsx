@@ -4,6 +4,7 @@ import ProductSearchFilter from './ProductSearchFilter';
 
 const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
   const [products, setProducts] = useState([]);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filterOutput, setFilterOutput] = useState(null);
@@ -13,14 +14,11 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
       setLoading(true);
       setError('');
 
-      const pageSize = 100;
-      let currentPage = 1;
-      let totalPages = 1;
-      const allProducts = [];
+      const pageSize = 24;
 
-      do {
+      const loadPage = async (pageNumber) => {
         const url = new URL('http://localhost:5000/api/products');
-        url.searchParams.append('page', currentPage);
+        url.searchParams.append('page', pageNumber);
         url.searchParams.append('limit', pageSize);
 
         const response = await fetch(url.toString());
@@ -30,24 +28,49 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
           throw new Error(data.message || 'Failed to fetch products');
         }
 
-        allProducts.push(...(data.data || []));
-        totalPages = Number(data.pagesCount || 1);
-        currentPage += 1;
-      } while (currentPage <= totalPages);
+        return {
+          products: data.data || [],
+          hasMore: Boolean(data.hasMore)
+        };
+      };
 
-      setProducts(allProducts);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      setError(error.message || 'Failed to load products');
-      setProducts([]);
-    } finally {
+      const firstPage = await loadPage(1);
+      const firstPageProducts = firstPage.products;
+      setProducts(firstPageProducts);
       setLoading(false);
+
+      if (firstPage.hasMore) {
+        setLoadingMore(true);
+        const remainingProducts = [...firstPageProducts];
+        let currentPage = 2;
+        let hasMore = true;
+
+        while (hasMore) {
+          const nextPage = await loadPage(currentPage);
+          remainingProducts.push(...nextPage.products);
+          setProducts([...remainingProducts]);
+          hasMore = nextPage.hasMore;
+          currentPage += 1;
+        }
+
+        setLoadingMore(false);
+      }
+    } catch (fetchError) {
+      console.error('Error fetching products:', fetchError);
+      setError(fetchError.message || 'Failed to load products');
+      setProducts([]);
+      setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  const refetchProducts = () => {
+    fetchProducts();
+  };
 
   if (loading) {
     return (
@@ -65,7 +88,7 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
         <h3 className="text-xl font-bold text-red-800 mb-2">Could not load products</h3>
         <p className="text-red-700 mb-4">{error}</p>
         <button
-          onClick={fetchProducts}
+          onClick={refetchProducts}
           className="px-4 py-2 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700"
         >
           Retry
@@ -78,6 +101,7 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
     <div className="marketplace-container">
       <div className="flex flex-col mb-8">
         <h2 className="marketplace-header mb-0">Browse Products</h2>
+        {loadingMore && <p className="mt-2 text-sm text-gray-500">Loading more products in the background...</p>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-6 items-start">
@@ -100,7 +124,7 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
                 <div key={product._id} className="product-card-modern cursor-pointer hover:shadow-lg transition-all hover:-translate-y-1" onClick={() => onProductClick && onProductClick(product)}>
                   <div className="relative overflow-hidden rounded-t-xl h-48 bg-gray-50">
                     <img
-                      src={product.images?.[0] || 'https://via.placeholder.com/300x200?text=No+Image'}
+                      src={product.coverImage || 'https://placehold.co/300x200?text=No+Image'}
                       alt={product.title}
                       className="w-full h-full object-cover transition-transform hover:scale-110 duration-500"
                     />

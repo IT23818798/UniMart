@@ -49,7 +49,7 @@ const ChatPage = ({ currentUser, userType }) => {
 
   const fetchConversations = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/messages/conversations', { headers, credentials: 'include' });
+      const res = await fetch('http://127.0.0.1:5000/api/messages/conversations', { headers, credentials: 'include' });
       const data = await res.json();
       if (data.success) setConversations(data.data);
     } catch (e) { console.error(e); }
@@ -58,7 +58,7 @@ const ChatPage = ({ currentUser, userType }) => {
 
   const fetchMessages = async (otherId, otherType, showLoader = false) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/messages/${otherId}?otherType=${otherType}`, { headers, credentials: 'include' });
+      const res = await fetch(`http://127.0.0.1:5000/api/messages/${otherId}?otherType=${otherType}`, { headers, credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         setMessages(data.data);
@@ -71,7 +71,7 @@ const ChatPage = ({ currentUser, userType }) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeChat) return;
     try {
-      const res = await fetch('http://localhost:5000/api/messages', {
+      const res = await fetch('http://127.0.0.1:5000/api/messages', {
         method: 'POST',
         headers,
         credentials: 'include',

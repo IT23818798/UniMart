@@ -144,8 +144,11 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   const fetchBuyerData = async () => {
     try {
       setLoading(true);
-
-      const profileResponse = await fetch('http://localhost:5000/api/buyer/profile', getBuyerRequestOptions());
+      
+      const [profileResponse, statsResponse] = await Promise.all([
+        fetch('http://127.0.0.1:5000/api/buyer/profile', getBuyerRequestOptions()),
+        fetch('http://127.0.0.1:5000/api/buyer/dashboard/stats', getBuyerRequestOptions())
+      ]);
 
       if (!profileResponse.ok) {
         throw new Error('Failed to fetch buyer profile');
@@ -191,7 +194,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   const fetchDashboardStats = async () => {
     try {
       setError(null);
-      const response = await fetch('http://localhost:5000/api/buyer/dashboard/stats', getBuyerRequestOptions());
+      const response = await fetch('http://127.0.0.1:5000/api/buyer/dashboard/stats', getBuyerRequestOptions());
 
       if (response.ok) {
         const data = await response.json();
@@ -230,7 +233,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:5000/api/buyer/logout', {
+      await fetch('http://127.0.0.1:5000/api/buyer/logout', {
         method: 'POST',
         ...getBuyerRequestOptions()
       });
@@ -790,51 +793,50 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
       )}
 
       {/* Payment Gateway Modal */}
-      <Suspense fallback={null}>
-        {showPaymentGateway && selectedProduct && (
-          <PaymentGateway 
-            amount={selectedProduct.price * orderQuantity}
-            product={selectedProduct}
-            quantity={orderQuantity}
-            contactPhone={checkoutPhone}
-            onCancel={() => setShowPaymentGateway(false)}
-            onPaymentSuccess={async () => {
-              try {
-                const response = await fetch('http://localhost:5000/api/orders/buyer', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
-                  },
-                  body: JSON.stringify({
-                    orderItems: [{
-                      product: selectedProduct._id,
-                      title: selectedProduct.title,
-                      image: selectedProduct.images[0] || '',
-                      price: selectedProduct.price,
-                      quantity: orderQuantity
-                    }],
-                    contactPhone: checkoutPhone
-                  })
-                });
-                const data = await response.json();
-                if (data.success) {
-                  alert('Order placed successfully!');
-                  setShowPaymentGateway(false);
-                  setSelectedProduct(null);
-                  setActiveTab('orders'); // Jump to orders view
-                } else {
-                  alert('Error placing order: ' + data.message);
-                  setShowPaymentGateway(false);
-                }
-              } catch (error) {
-                console.error('Order error:', error);
-                alert('Something went wrong placing the order');
+      {showPaymentGateway && selectedProduct && (
+        <PaymentGateway 
+          amount={selectedProduct.price * orderQuantity}
+          product={selectedProduct}
+          quantity={orderQuantity}
+          contactPhone={checkoutPhone}
+          onCancel={() => setShowPaymentGateway(false)}
+          onPaymentSuccess={async () => {
+            try {
+              const response = await fetch('http://127.0.0.1:5000/api/orders/buyer', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+                },
+                body: JSON.stringify({
+                  orderItems: [{
+                    product: selectedProduct._id,
+                    title: selectedProduct.title,
+                    image: selectedProduct.images[0] || '',
+                    price: selectedProduct.price,
+                    quantity: orderQuantity
+                  }],
+                  contactPhone: checkoutPhone
+                })
+              });
+              const data = await response.json();
+              if (data.success) {
+                alert('Order placed successfully!');
+                setShowPaymentGateway(false);
+                setSelectedProduct(null);
+                setActiveTab('orders'); // Jump to orders view
+              } else {
+                alert('Error placing order: ' + data.message);
                 setShowPaymentGateway(false);
               }
-            }}
-          />
-        )}
+            } catch (error) {
+              console.error('Order error:', error);
+              alert('Something went wrong placing the order');
+              setShowPaymentGateway(false);
+            }
+          }}
+        />
+      )}
 
         {isChatOpen && chatContext && (
           <ChatPopup 

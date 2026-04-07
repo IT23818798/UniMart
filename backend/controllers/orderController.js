@@ -81,6 +81,12 @@ exports.createOrder = async (req, res) => {
 // Get logged in buyer's orders (Buyer)
 exports.getBuyerOrders = async (req, res) => {
   try {
+    const orders = await Order.find({ buyer: req.buyer.id })
+      .select('-orderItems.image') // Crucial for performance: avoid fetching huge embedded base64 strings
+      .populate('seller', 'businessName')
+      .sort('-createdAt');
+
+    res.status(200).json({ success: true, data: orders, count: orders.length });
     let lastError;
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -152,6 +158,7 @@ exports.getBuyerOrders = async (req, res) => {
 exports.getSellerOrders = async (req, res) => {
   try {
     const orders = await Order.find({ seller: req.seller.id })
+      .select('-orderItems.image') // Crucial for performance: avoid fetching huge embedded base64 strings
       .populate('buyer', 'firstName lastName email')
       .sort('-createdAt');
 

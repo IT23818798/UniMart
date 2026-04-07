@@ -20,13 +20,19 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
         const url = new URL('http://localhost:5000/api/products');
         url.searchParams.append('page', pageNumber);
         url.searchParams.append('limit', pageSize);
+      const pageSize = 50; // Increased to 50 so filters have enough items to work with without taking 2 minutes
+      const currentPage = 1;
 
-        const response = await fetch(url.toString());
-        const data = await response.json();
+      const url = new URL('http://127.0.0.1:5000/api/products');
+      url.searchParams.append('page', currentPage);
+      url.searchParams.append('limit', pageSize);
 
-        if (!response.ok || !data.success) {
-          throw new Error(data.message || 'Failed to fetch products');
-        }
+      const response = await fetch(url.toString());
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to fetch products');
+      }
 
         return {
           products: data.data || [],
@@ -37,6 +43,12 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
       const firstPage = await loadPage(1);
       const firstPageProducts = firstPage.products;
       setProducts(firstPageProducts);
+      setProducts(data.data || []);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setError(error.message || 'Failed to load products');
+      setProducts([]);
+    } finally {
       setLoading(false);
 
       if (firstPage.hasMore) {
@@ -125,8 +137,10 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
                   <div className="relative overflow-hidden rounded-t-xl h-48 bg-gray-50">
                     <img
                       src={product.coverImage || 'https://placehold.co/300x200?text=No+Image'}
+                      src={`http://127.0.0.1:5000/api/products/${product._id}/thumbnail`}
                       alt={product.title}
                       className="w-full h-full object-cover transition-transform hover:scale-110 duration-500"
+                      onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/300x200?text=No+Image'; }}
                     />
                     <span className="absolute top-2 right-2 badge-category bg-white/90 backdrop-blur-sm text-blue-600 shadow-sm border-none px-3">
                       {product.category}

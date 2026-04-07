@@ -28,7 +28,7 @@ const AdminApp = () => {
         const storedAdminData = localStorage.getItem('adminData');
         if (storedAdminData && currentPath === '/admin-dashboard') {
           // Try to verify with server
-          const response = await fetch('http://localhost:5000/api/admin/profile', {
+          const response = await fetch('http://127.0.0.1:5000/api/admin/profile', {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
@@ -44,7 +44,7 @@ const AdminApp = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:5000/api/admin/profile', {
+      const response = await fetch('http://127.0.0.1:5000/api/admin/profile', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

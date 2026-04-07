@@ -10,7 +10,7 @@ const SellerProducts = ({ seller }) => {
   const [editingId, setEditingId] = useState(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [formData, setFormData] = useState({
-    title: '', description: '', price: '', stock: '', category: 'Electronics', image: ''
+    title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: ''
   });
 
   const authHeaders = useMemo(() => {
@@ -24,7 +24,7 @@ const SellerProducts = ({ seller }) => {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/products/seller', {
+      const response = await fetch('http://127.0.0.1:5000/api/products/seller', {
         headers: {
           ...authHeaders
         }
@@ -228,6 +228,9 @@ const SellerProducts = ({ seller }) => {
       price: product.price,
       stock: product.stock,
       category: product.category,
+      condition: product.condition || 'new',
+      availability: product.availability || 'in_stock',
+      tags: Array.isArray(product.tags) ? product.tags.join(', ') : '',
       image: product.images && product.images.length > 0 ? product.images[0] : ''
     });
     setEditingId(product._id);
@@ -238,8 +241,8 @@ const SellerProducts = ({ seller }) => {
     e.preventDefault();
     try {
       const url = editingId
-        ? `http://localhost:5000/api/products/seller/${editingId}`
-        : 'http://localhost:5000/api/products/seller';
+        ? `http://127.0.0.1:5000/api/products/seller/${editingId}`
+        : 'http://127.0.0.1:5000/api/products/seller';
       const method = editingId ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -250,6 +253,7 @@ const SellerProducts = ({ seller }) => {
         },
         body: JSON.stringify({
           ...formData,
+          tags: formData.tags,
           images: [formData.image]
         })
       });
@@ -262,7 +266,7 @@ const SellerProducts = ({ seller }) => {
         }
         setShowForm(false);
         setEditingId(null);
-        setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' });
+        setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' });
       } else {
         alert(data.message || `Error ${editingId ? 'updating' : 'adding'} product`);
       }
@@ -274,7 +278,7 @@ const SellerProducts = ({ seller }) => {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/products/seller/${id}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/products/seller/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
@@ -299,34 +303,18 @@ const SellerProducts = ({ seller }) => {
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold text-gray-900">Manage Products</h2>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={generatePdfReport}
-            disabled={generatingPdf}
-            className={`px-4 py-2 rounded flex items-center gap-2 border transition-colors ${
-              generatingPdf
-                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-            }`}
-            title="Generate PDF report of products and orders"
-          >
-            <FaFilePdf className="text-red-600" />
-            {generatingPdf ? 'Generating...' : 'Download PDF Report'}
-          </button>
-
-          <button
-            onClick={() => {
-              setShowForm(!showForm);
-              if (showForm) {
-                setEditingId(null);
-                setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' });
-              }
-            }}
-            className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700"
-          >
-            <FaPlus /> {editingId && showForm ? 'Cancel Edit' : 'Add Product'}
-          </button>
-        </div>
+        <button
+          onClick={() => {
+            setShowForm(!showForm);
+            if (showForm) {
+              setEditingId(null);
+              setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' });
+            }
+          }}
+          className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700"
+        >
+          <FaPlus /> {editingId && showForm ? 'Cancel Edit' : 'Add Product'}
+        </button>
       </div>
 
       {showForm && (
@@ -341,6 +329,24 @@ const SellerProducts = ({ seller }) => {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+            <select name="condition" value={formData.condition} onChange={handleInputChange} className="border p-2 rounded">
+              <option value="new">New</option>
+              <option value="used">Used</option>
+              <option value="like_new">Like New</option>
+            </select>
+            <select name="availability" value={formData.availability} onChange={handleInputChange} className="border p-2 rounded">
+              <option value="in_stock">In Stock</option>
+              <option value="sold">Sold</option>
+              <option value="reserved">Reserved</option>
+            </select>
+            <input
+              type="text"
+              name="tags"
+              placeholder="Tags (comma separated)"
+              value={formData.tags}
+              onChange={handleInputChange}
+              className="border p-2 rounded"
+            />
             <div className="col-span-1 md:col-span-2 border p-3 rounded bg-white">
               <label className="block text-sm font-medium text-gray-700 mb-2">Upload Product Image</label>
               <input type="file" accept="image/*" onChange={handleImageChange} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100" />
@@ -355,7 +361,7 @@ const SellerProducts = ({ seller }) => {
           </div>
           <div className="mt-4 flex gap-2">
             <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingId ? 'Update Product' : 'Save Product'}</button>
-            <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' }); }} className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500">Cancel</button>
+            <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' }); }} className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500">Cancel</button>
           </div>
         </form>
       )}
@@ -367,6 +373,9 @@ const SellerProducts = ({ seller }) => {
               <th className="py-3 px-4 text-left">Product</th>
               <th className="py-3 px-4 text-left">Description</th>
               <th className="py-3 px-4 text-left">Category</th>
+              <th className="py-3 px-4 text-left">Condition</th>
+              <th className="py-3 px-4 text-left">Availability</th>
+              <th className="py-3 px-4 text-left">Tags</th>
               <th className="py-3 px-4 text-left">Price</th>
               <th className="py-3 px-4 text-left">Stock</th>
               <th className="py-3 px-4 text-left">Status</th>
@@ -377,13 +386,18 @@ const SellerProducts = ({ seller }) => {
             {products.map(product => (
               <tr key={product._id} className="hover:bg-gray-50">
                 <td className="py-3 px-4 flex items-center gap-3">
-                  <img src={product.images[0] || 'https://via.placeholder.com/50'} alt={product.title} className="w-10 h-10 object-cover rounded" />
+                  <img src={product.images[0] || 'https://placehold.co/50x50'} alt={product.title} className="w-10 h-10 object-cover rounded" />
                   <span className="font-medium text-gray-900">{product.title}</span>
                 </td>
                 <td className="py-3 px-4 max-w-[150px] truncate text-gray-500" title={product.description}>
                   {product.description}
                 </td>
                 <td className="py-3 px-4">{product.category}</td>
+                <td className="py-3 px-4">{String(product.condition || 'new').replace('_', ' ')}</td>
+                <td className="py-3 px-4">{String(product.availability || 'in_stock').replace('_', ' ')}</td>
+                <td className="py-3 px-4 max-w-[180px] truncate" title={Array.isArray(product.tags) ? product.tags.join(', ') : ''}>
+                  {Array.isArray(product.tags) && product.tags.length > 0 ? product.tags.join(', ') : '-'}
+                </td>
                 <td className="py-3 px-4">Rs {product.price}</td>
                 <td className="py-3 px-4">{product.stock}</td>
                 <td className="py-3 px-4">
@@ -403,7 +417,7 @@ const SellerProducts = ({ seller }) => {
             ))}
             {products.length === 0 && (
               <tr>
-                <td colSpan="7" className="text-center py-8 text-gray-500">No products found. Add your first product!</td>
+                <td colSpan="10" className="text-center py-8 text-gray-500">No products found. Add your first product!</td>
               </tr>
             )}
           </tbody>

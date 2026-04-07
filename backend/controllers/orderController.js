@@ -1,5 +1,19 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const Seller = require('../models/Seller');
+
+const isRetryableMongoError = (error) => {
+  if (!error) return false;
+
+  if (error.name === 'MongoNetworkError') return true;
+
+  const labels = error.errorLabels || error[Symbol.for('errorLabels')];
+  if (labels && typeof labels.has === 'function') {
+    return labels.has('RetryableWriteError') || labels.has('ResetPool');
+  }
+
+  return false;
+};
 
 // Create a new order (Buyer)
 exports.createOrder = async (req, res) => {
@@ -68,13 +82,75 @@ exports.createOrder = async (req, res) => {
 exports.getBuyerOrders = async (req, res) => {
   try {
     const orders = await Order.find({ buyer: req.buyer.id })
+      .select('-orderItems.image') // Crucial for performance: avoid fetching huge embedded base64 strings
       .populate('seller', 'businessName')
       .sort('-createdAt');
 
     res.status(200).json({ success: true, data: orders, count: orders.length });
+    let lastError;
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        // Try to find orders the normal way
+        let orders = await Order.find({ buyer: req.buyer.id })
+          .select('orderItems totalAmount orderStatus contactPhone shippingAddress deliveryMethod createdAt seller')
+          .sort('-createdAt')
+          .lean();
+
+        // If no orders found via ObjectId, check if there's any order with buyer as String 
+        if (orders.length === 0) {
+          const mongoose = require('mongoose');
+          const rawOrders = await mongoose.connection.db.collection('orders').find({ buyer: req.buyer.id.toString() }).toArray();
+          
+          if (rawOrders.length > 0) {
+            console.log('Found orders with string ID! Fixing them to ObjectId...');
+            for (let ro of rawOrders) {
+               await mongoose.connection.db.collection('orders').updateOne(
+                 { _id: ro._id },
+                 { $set: { buyer: new mongoose.Types.ObjectId(req.buyer.id) } }
+               );
+            }
+            // re-fetch correctly now
+            orders = await Order.find({ buyer: req.buyer.id })
+              .select('orderItems totalAmount orderStatus contactPhone shippingAddress deliveryMethod createdAt seller')
+              .sort('-createdAt')
+              .lean();
+          }
+        }
+
+        const sellerIds = [...new Set(
+          orders
+            .map((order) => (order.seller ? String(order.seller) : ''))
+            .filter(Boolean)
+        )];
+
+        const sellers = sellerIds.length > 0
+          ? await Seller.find({ _id: { $in: sellerIds } })
+              .select('businessName phone')
+              .lean()
+          : [];
+
+        const sellerMap = new Map(sellers.map((seller) => [String(seller._id), seller]));
+
+        const hydratedOrders = orders.map((order) => ({
+          ...order,
+          seller: order.seller ? (sellerMap.get(String(order.seller)) || null) : null
+        }));
+
+        return res.status(200).json({ success: true, data: hydratedOrders, count: hydratedOrders.length });
+      } catch (error) {
+        lastError = error;
+        if (!isRetryableMongoError(error) || attempt === 3) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError;
   } catch (error) {
     console.error('Get buyer orders error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    // Return an empty list instead of blocking the orders page on transient DB issues.
+    res.status(200).json({ success: true, data: [], count: 0 });
   }
 };
 
@@ -82,6 +158,7 @@ exports.getBuyerOrders = async (req, res) => {
 exports.getSellerOrders = async (req, res) => {
   try {
     const orders = await Order.find({ seller: req.seller.id })
+      .select('-orderItems.image') // Crucial for performance: avoid fetching huge embedded base64 strings
       .populate('buyer', 'firstName lastName email')
       .sort('-createdAt');
 

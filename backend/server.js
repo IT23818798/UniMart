@@ -70,6 +70,43 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Debug endpoint for checking orders and users directly from active DB connection
+app.get('/api/debug-orders', async (req, res) => {
+  try {
+    const mongoose = require('mongoose');
+    const db = mongoose.connection.db;
+    
+    // Fix orders with string IDs implicitly
+    const rawOrders = await db.collection('orders').find({}).toArray();
+    let yasinthaId = null;
+    
+    // Attempt to string fix
+    const buyers = await db.collection('buyers').find({}).toArray();
+    const yasintha = buyers.find(b => b.email === 'wele@gmail.com' || (b.firstName && b.firstName.toLowerCase().includes('yasintha')));
+    
+    if (yasintha) {
+        yasinthaId = yasintha._id.toString();
+        // check if any order has buyer as string that equals yasinthaId
+        for (let ro of rawOrders) {
+            if (typeof ro.buyer === 'string' && ro.buyer === yasinthaId) {
+                await db.collection('orders').updateOne(
+                    { _id: ro._id },
+                    { $set: { buyer: new mongoose.Types.ObjectId(yasinthaId) } }
+                );
+                ro.buyer = new mongoose.Types.ObjectId(yasinthaId); // update local copy too
+            }
+        }
+    }
+    
+    const orders = await mongoose.model('Order').find().lean() || rawOrders;
+    
+    res.json({ yasintha, orders, status: 'ok' });
+  } catch (err) {
+    res.status(500).json({ error: err.message, stack: err.stack });
+  }
+});
+
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({

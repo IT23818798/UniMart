@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaTrash, FaDownload } from 'react-icons/fa';
+import { FaTrash, FaDownload, FaStar } from 'react-icons/fa';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -9,11 +9,21 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
   const [editingOrder, setEditingOrder] = useState(null);
   const [updatePhone, setUpdatePhone] = useState('');
   const [updateQuantity, setUpdateQuantity] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [reviewingOrder, setReviewingOrder] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [buyer?._id, buyer?.id]);
+
+  const getRequestHeaders = () => {
+    const token = localStorage.getItem('buyerToken');
+    return {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+  };
 
   const filteredOrders = orders.filter((order) => {
     const q = searchTerm.trim().toLowerCase();
@@ -31,19 +41,50 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
   });
 
   const fetchOrders = async () => {
+    const controller = new AbortController();
+    const requestTimeout = setTimeout(() => {
+      controller.abort();
+    }, 6000);
+
     try {
+      setLoading(true);
+
       const response = await fetch('http://localhost:5000/api/orders/buyer', {
+        headers: getRequestHeaders(),
+        credentials: 'include',
+        signal: controller.signal
+      const response = await fetch('http://127.0.0.1:5000/api/orders/buyer', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
         }
       });
+
       const data = await response.json();
-      if (data.success) {
-        setOrders(data.data);
+
+      if (response.status === 401) {
+        localStorage.removeItem('buyerToken');
+        localStorage.removeItem('buyerData');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 400);
+        return;
       }
+
+      if (!response.ok || !data.success) {
+        // Keep orders view usable even if API responds with an error.
+        setOrders([]);
+        return;
+      }
+
+      setOrders(Array.isArray(data.data) ? data.data : []);
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      if (error.name !== 'AbortError') {
+        console.error('Error fetching orders:', error);
+      }
+      // Never block rendering on transient request issues.
+      setOrders((prevOrders) => (Array.isArray(prevOrders) ? prevOrders : []));
     } finally {
+      clearTimeout(requestTimeout);
       setLoading(false);
     }
   };
@@ -51,11 +92,10 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
   const handleDelete = async (orderId) => {
     if (!window.confirm('Are you sure you want to delete this order?')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/orders/buyer/${orderId}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/orders/buyer/${orderId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
-        }
+        headers: getRequestHeaders(),
+        credentials: 'include'
       });
       const data = await response.json();
       if (data.success) {
@@ -77,12 +117,13 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
   const handleUpdateOrder = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`http://localhost:5000/api/orders/buyer/${editingOrder._id}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/orders/buyer/${editingOrder._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+          ...getRequestHeaders()
         },
+        credentials: 'include',
         body: JSON.stringify({ contactPhone: updatePhone, quantity: updateQuantity })
       });
       const data = await response.json();
@@ -94,6 +135,43 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
       }
     } catch (error) {
       console.error('Error updating order:', error);
+    }
+  };
+
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    if (!reviewingOrder) return;
+    
+    setReviewSubmitting(true);
+    try {
+      const response = await fetch(`http://127.0.0.1:5000/api/seller/info/${reviewingOrder.seller._id}/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('buyerToken')}`
+        },
+        body: JSON.stringify({
+          rating: reviewRating,
+          comment: reviewComment,
+          orderId: reviewingOrder._id
+        })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        alert('Review submitted successfully!');
+        setOrders(orders.map(o => o._id === reviewingOrder._id ? { ...o, isReviewed: true } : o));
+        setReviewingOrder(null);
+        setReviewRating(5);
+        setReviewComment('');
+      } else {
+        alert(data.message || 'Failed to submit review');
+      }
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      alert('An error occurred while submitting your review.');
+    } finally {
+      setReviewSubmitting(false);
     }
   };
 
@@ -165,7 +243,9 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
     doc.save(`Unimart_Receipt_${order._id.substring(0,8)}.pdf`);
   };
 
-  if (loading) return <div>Loading your orders...</div>;
+  if (loading) {
+    return <div className="text-gray-600">Loading your orders...</div>;
+  }
 
   return (
     <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100/50 p-8 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
@@ -195,7 +275,14 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 text-sm">
-            {filteredOrders.map(order => (
+            {orders.map(order => (
+              (() => {
+                const items = Array.isArray(order.orderItems) ? order.orderItems : [];
+                const totalAmount = Number.isFinite(order.totalAmount)
+                  ? order.totalAmount
+                  : items.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+
+                return (
               <tr 
                 key={order._id} 
                 className="hover:bg-gray-50 cursor-pointer transition-colors"
@@ -204,13 +291,13 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
                 <td className="py-3 px-4 font-mono text-xs">{order._id.substring(0, 8)}...</td>
                 <td className="py-3 px-4">{order.seller?.businessName || 'Unknown'}</td>
                 <td className="py-3 px-4">
-                  {order.orderItems.map((item, i) => (
+                  {items.map((item, i) => (
                     <div key={i} className="text-gray-800">
                       <span className="font-medium">{item.title}</span> (x{item.quantity}) - <span className="text-gray-500">Rs {item.price}</span>
                     </div>
                   ))}
                 </td>
-                <td className="py-3 px-4 font-semibold text-blue-600">Rs {order.totalAmount.toFixed(2)}</td>
+                <td className="py-3 px-4 font-semibold text-blue-600">Rs {totalAmount.toFixed(2)}</td>
                 <td className="py-3 px-4">
                   <span className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize shadow-sm border ${
                       order.orderStatus === 'delivered' ? 'bg-green-50 text-green-700 border-green-200' :
@@ -229,8 +316,73 @@ const BuyerOrders = ({ buyer, onOrderClick }) => {
                     <FaTrash /> Cancel
                   </button>
                   )}
+                  {(order.orderStatus.toLowerCase() === 'done' || order.orderStatus.toLowerCase() === 'delivered') && !order.isReviewed && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setReviewingOrder(order); }}
+                      className="px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded-lg text-sm font-semibold hover:bg-purple-100 transition-all flex items-center gap-1.5"
+                      title="Rate Seller"
+                    >
+                      <FaStar /> Rate
+                    </button>
+                  )}
+                  {(order.orderStatus.toLowerCase() === 'done' || order.orderStatus.toLowerCase() === 'delivered') && order.isReviewed && (
+                    <span className="px-3 py-1.5 bg-gray-50 text-gray-500 border border-gray-200 rounded-lg text-sm font-semibold flex items-center gap-1.5 cursor-not-allowed">
+                      <FaStar /> Rated
+                    </span>
+                  )}
                 </td>
               </tr>
+                );
+              })()
+              {reviewingOrder && reviewingOrder._id === order._id && (
+                <tr className="bg-purple-50/10">
+                  <td colSpan="6" className="p-0 border-b-2 border-purple-100">
+                    <div className="p-6 bg-gradient-to-r from-transparent via-purple-50/30 to-purple-50/60 flex justify-end">
+                      <div className="bg-white rounded-xl shadow-lg border border-purple-100 p-6 w-full max-w-md relative animate-in fade-in slide-in-from-top-4 duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="absolute top-4 right-4 text-purple-300 hover:text-purple-500 cursor-pointer text-lg" onClick={() => setReviewingOrder(null)}>✕</div>
+                        <h3 className="text-lg font-bold mb-1 text-purple-800">Rate Your Experience</h3>
+                        <p className="text-xs text-gray-500 mb-5">With <b className="text-gray-800">{reviewingOrder.seller?.businessName || 'this seller'}</b></p>
+                        
+                        <form onSubmit={handleReviewSubmit} className="space-y-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Select Rating</label>
+                            <div className="flex gap-2">
+                              {[1, 2, 3, 4, 5].map(star => (
+                                <button
+                                  key={star}
+                                  type="button"
+                                  onClick={() => setReviewRating(star)}
+                                  className={`text-2xl transition-transform hover:scale-110 ${reviewRating >= star ? 'text-yellow-400' : 'text-gray-200 hover:text-yellow-200'}`}
+                                >
+                                  ★
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-2 mt-4 uppercase tracking-wide">Comment (Optional)</label>
+                            <textarea 
+                              value={reviewComment}
+                              onChange={e => setReviewComment(e.target.value)}
+                              className="w-full border px-3 py-2 text-sm rounded-lg outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition-all min-h-[80px] resize-none"
+                              placeholder="Share details of your experience..."
+                            />
+                          </div>
+
+                          <div className="flex justify-end gap-3 mt-4 pt-2">
+                            <button type="button" onClick={() => setReviewingOrder(null)} className="px-4 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 disabled:opacity-50 focus:outline-none" disabled={reviewSubmitting}>Cancel</button>
+                            <button type="submit" className="px-5 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 shadow-sm transition-colors flex items-center justify-center min-w-[110px] focus:outline-none" disabled={reviewSubmitting}>
+                              {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
             ))}
             {filteredOrders.length === 0 && (
               <tr>

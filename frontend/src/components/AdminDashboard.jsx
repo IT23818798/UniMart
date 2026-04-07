@@ -937,7 +937,7 @@ const AdminManagement = memo(function AdminManagement({
     try {
       setAdminUpdateLoading(true);
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/users/${selectedAdmin._id}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/users/${selectedAdmin._id}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -970,7 +970,7 @@ const AdminManagement = memo(function AdminManagement({
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/users/${adminId}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/users/${adminId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1014,7 +1014,7 @@ const AdminManagement = memo(function AdminManagement({
     try {
       setAddAdminLoading(true);
       const token = localStorage.getItem('adminToken');
-      const response = await fetch('http://localhost:5000/api/admin/register', {
+      const response = await fetch('http://127.0.0.1:5000/api/admin/register', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1572,7 +1572,7 @@ const SellerManagement = memo(function SellerManagement({
     try {
       setSellerUpdateLoading(true);
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/sellers/${selectedSeller._id}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/sellers/${selectedSeller._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         credentials: 'include',
@@ -1604,7 +1604,7 @@ const SellerManagement = memo(function SellerManagement({
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/sellers/${sellerId}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/sellers/${sellerId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -2795,7 +2795,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch('http://localhost:5000/api/admin/dashboard', {
+      const response = await fetch('http://127.0.0.1:5000/api/admin/dashboard', {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
       });
@@ -2816,7 +2816,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
   const handleLogout = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      await fetch('http://localhost:5000/api/admin/logout', {
+      await fetch('http://127.0.0.1:5000/api/admin/logout', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -2843,7 +2843,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
       }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch('http://localhost:5000/api/admin/sellers', {
+      const response = await fetch('http://127.0.0.1:5000/api/admin/sellers', {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
         signal: controller.signal,
@@ -2879,7 +2879,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
       }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch('http://localhost:5000/api/admin/users', {
+      const response = await fetch('http://127.0.0.1:5000/api/admin/users', {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
         signal: controller.signal,
@@ -2916,7 +2916,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
       }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch('http://localhost:5000/api/admin/buyers', {
+      const response = await fetch('http://127.0.0.1:5000/api/admin/buyers', {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
         signal: controller.signal,
@@ -3019,7 +3019,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
   const handleBuyerStatusChange = async (buyerId, newStatus) => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/buyers/${buyerId}/status`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/buyers/${buyerId}/status`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -3043,7 +3043,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
     if (!window.confirm('Are you sure you want to delete this buyer?')) return;
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/buyers/${buyerId}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/buyers/${buyerId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -3133,7 +3133,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
     setBuyerUpdateLoading(true);
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/buyers/${selectedBuyer._id}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/buyers/${selectedBuyer._id}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -3267,7 +3267,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
               setProfileUpdateLoading(true);
               try {
                 const token = localStorage.getItem('adminToken');
-                const response = await fetch('http://localhost:5000/api/admin/profile', {
+                const response = await fetch('http://127.0.0.1:5000/api/admin/profile', {
                   method: 'PUT',
                   headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
                   credentials: 'include',

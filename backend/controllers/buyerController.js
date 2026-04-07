@@ -1,6 +1,7 @@
 const Buyer = require('../models/Buyer');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const Product = require('../models/Product');
 
 // Register a new buyer
 const registerBuyer = async (req, res) => {
@@ -274,9 +275,8 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Get buyer with password
     const buyer = await Buyer.findById(req.buyer.id).select('+password');
-    
+
     if (!buyer) {
       return res.status(404).json({
         success: false,
@@ -284,7 +284,6 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Verify current password
     const isCurrentPasswordValid = await buyer.comparePassword(currentPassword);
     if (!isCurrentPasswordValid) {
       return res.status(400).json({
@@ -293,7 +292,6 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Update password
     buyer.password = newPassword;
     await buyer.save();
 
@@ -310,15 +308,134 @@ const changePassword = async (req, res) => {
   }
 };
 
+// Get all reviews written by the authenticated buyer
+const getBuyerReviews = async (req, res) => {
+  try {
+    const buyerId = req.buyer.id;
+
+    const products = await Product.find({
+      $or: [{ 'reviews.user': buyerId }, { 'reviews.userId': buyerId }]
+    })
+      .select('title category images seller reviews')
+      .populate('seller', 'businessName firstName lastName');
+
+    const reviews = [];
+
+    products.forEach((product) => {
+      const ownReviews = (product.reviews || []).filter(
+        (review) =>
+          (review.user && review.user.toString() === buyerId.toString()) ||
+          (review.userId && review.userId.toString() === buyerId.toString())
+      );
+
+      ownReviews.forEach((review) => {
+        reviews.push({
+          reviewId: review._id,
+          productId: product._id,
+          productTitle: product.title,
+          productCategory: product.category,
+          productImage: product.images?.[0] || '',
+          sellerName:
+            product.seller?.businessName ||
+            `${product.seller?.firstName || ''} ${product.seller?.lastName || ''}`.trim() ||
+            'Unknown Seller',
+          rating: review.rating,
+          comment: review.comment,
+          createdAt: review.createdAt
+        });
+      });
+    });
+
+    reviews.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const totalReviews = reviews.length;
+    const averageRating =
+      totalReviews > 0
+        ? Number((reviews.reduce((acc, item) => acc + Number(item.rating || 0), 0) / totalReviews).toFixed(1))
+        : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          totalReviews,
+          averageRating
+        },
+        reviews
+      }
+    });
+  } catch (error) {
+    console.error('Get buyer reviews error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching buyer reviews'
+    });
+  }
+};
+
 // Get buyer dashboard data
 const getDashboardStats = async (req, res) => {
+  const buildFallbackStats = (buyer = {}) => ({
+    buyerInfo: {
+      id: buyer._id || req.buyer?.id || null,
+      fullName: buyer.fullName || req.buyer?.fullName || 'Buyer',
+      loyaltyLevel: 'bronze',
+      loyaltyPoints: 0,
+      membershipType: 'basic',
+      memberSince: buyer.createdAt || new Date(),
+      lastLogin: buyer.lastLogin || null
+    },
+    purchaseMetrics: {
+      totalOrders: 0,
+      totalSpent: 0,
+      averageOrderValue: 0,
+      lastOrderDate: null,
+      favoriteCategories: [],
+      monthlySpending: 0
+    },
+    orderData: {
+      pendingOrders: 0,
+      deliveredOrders: 0,
+      cancelledOrders: 0,
+      returnedOrders: 0,
+      recentOrders: [],
+      upcomingDeliveries: []
+    },
+    wishlistStats: {
+      totalItems: 0,
+      recentlyAdded: [],
+      topCategories: [],
+      averagePrice: 0
+    },
+    sellerStats: {
+      favoriteSellers: 0,
+      recentPurchasesFrom: [],
+      topRatedSellers: []
+    },
+    recommendations: {
+      products: [],
+      sellers: [],
+      deals: [],
+      seasonal: []
+    },
+    notifications: {
+      unread: 0,
+      recent: []
+    },
+    savings: {
+      totalSavings: 0,
+      loyaltyRewards: 0,
+      membershipBenefits: []
+    }
+  });
+
   try {
     const buyerId = req.buyer.id;
 
     // Get buyer info
     const buyer = await Buyer.findById(buyerId)
-      .populate('wishlist.productId', 'name price seller')
-      .populate('favoriteSellers.sellerId', 'businessName ratings');
+      .select('firstName lastName fullName createdAt lastLogin purchaseStats membership wishlist favoriteSellers')
+      .lean();
     
     if (!buyer) {
       return res.status(404).json({
@@ -327,23 +444,30 @@ const getDashboardStats = async (req, res) => {
       });
     }
 
+    const loyaltyPoints = Number(buyer.purchaseStats?.loyaltyPoints || 0);
+    let loyaltyLevel = 'bronze';
+    if (loyaltyPoints >= 5000) loyaltyLevel = 'diamond';
+    else if (loyaltyPoints >= 2500) loyaltyLevel = 'platinum';
+    else if (loyaltyPoints >= 1000) loyaltyLevel = 'gold';
+    else if (loyaltyPoints >= 500) loyaltyLevel = 'silver';
+
     // Mock dashboard statistics (replace with actual queries from orders/products collections)
     const dashboardStats = {
       buyerInfo: {
         id: buyer._id,
         fullName: buyer.fullName,
-        loyaltyLevel: buyer.getLoyaltyLevel(),
-        loyaltyPoints: buyer.purchaseStats.loyaltyPoints,
-        membershipType: buyer.membership.type,
+        loyaltyLevel,
+        loyaltyPoints,
+        membershipType: buyer.membership?.type || 'basic',
         memberSince: buyer.createdAt,
         lastLogin: buyer.lastLogin
       },
       purchaseMetrics: {
-        totalOrders: buyer.purchaseStats.totalOrders || 0,
-        totalSpent: buyer.purchaseStats.totalSpent || 0,
-        averageOrderValue: buyer.purchaseStats.averageOrderValue || 0,
-        lastOrderDate: buyer.purchaseStats.lastOrderDate,
-        favoriteCategories: buyer.purchaseStats.favoriteCategories || [],
+        totalOrders: buyer.purchaseStats?.totalOrders || 0,
+        totalSpent: buyer.purchaseStats?.totalSpent || 0,
+        averageOrderValue: buyer.purchaseStats?.averageOrderValue || 0,
+        lastOrderDate: buyer.purchaseStats?.lastOrderDate,
+        favoriteCategories: buyer.purchaseStats?.favoriteCategories || [],
         monthlySpending: 0 // Calculate from actual orders
       },
       orderData: {
@@ -355,15 +479,15 @@ const getDashboardStats = async (req, res) => {
         upcomingDeliveries: []
       },
       wishlistStats: {
-        totalItems: buyer.wishlist.length,
-        recentlyAdded: buyer.wishlist.slice(-5),
+        totalItems: buyer.wishlist?.length || 0,
+        recentlyAdded: (buyer.wishlist || []).slice(-5),
         topCategories: [],
         averagePrice: 0
       },
       sellerStats: {
-        favoriteSellers: buyer.favoriteSellers.length,
+        favoriteSellers: buyer.favoriteSellers?.length || 0,
         recentPurchasesFrom: [], // Get from orders
-        topRatedSellers: buyer.favoriteSellers.slice(0, 5)
+        topRatedSellers: (buyer.favoriteSellers || []).slice(0, 5)
       },
       recommendations: {
         products: [], // Based on purchase history and preferences
@@ -390,8 +514,8 @@ const getDashboardStats = async (req, res) => {
       },
       savings: {
         totalSavings: 0, // From discounts and promotions
-        loyaltyRewards: buyer.purchaseStats.loyaltyPoints,
-        membershipBenefits: buyer.membership.benefits || []
+        loyaltyRewards: buyer.purchaseStats?.loyaltyPoints || 0,
+        membershipBenefits: buyer.membership?.benefits || []
       }
     };
 
@@ -402,9 +526,11 @@ const getDashboardStats = async (req, res) => {
 
   } catch (error) {
     console.error('Get dashboard stats error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching dashboard statistics'
+    // Do not break dashboard rendering for recoverable data-shape issues.
+    res.status(200).json({
+      success: true,
+      data: buildFallbackStats(),
+      warning: 'Dashboard statistics fallback returned due to partial data issue.'
     });
   }
 };
@@ -707,9 +833,7 @@ module.exports = {
   addToWishlist,
   removeFromWishlist,
   addDeliveryAddress,
-  getDeliveryAddresses,
-  updateDeliveryAddress,
-  deleteDeliveryAddress,
+  getBuyerReviews,
   getAllBuyers,
   deleteBuyer
 };

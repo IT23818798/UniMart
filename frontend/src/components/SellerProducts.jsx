@@ -1,32 +1,29 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { FaEdit, FaTrash, FaPlus, FaFilePdf } from 'react-icons/fa';
 
 const SellerProducts = ({ seller }) => {
   const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [ordersLoading, setOrdersLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [formData, setFormData] = useState({
-    title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: ''
+    title: '', description: '', price: '', stock: '', category: 'Electronics', image: ''
   });
-
-  const authHeaders = useMemo(() => {
-    const token = localStorage.getItem('sellerToken');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }, []);
 
   useEffect(() => {
     fetchProducts();
+    fetchOrders();
   }, []);
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/products/seller', {
+      const response = await fetch('http://localhost:5000/api/products/seller', {
         headers: {
-          ...authHeaders
+          'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
         }
       });
       const data = await response.json();
@@ -40,159 +37,160 @@ const SellerProducts = ({ seller }) => {
     }
   };
 
-  const fetchOrdersForReport = async () => {
-    const response = await fetch('http://localhost:5000/api/orders/seller', {
-      headers: {
-        ...authHeaders
+  const fetchOrders = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/orders/seller', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
+        }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setOrders(data.data);
       }
-    });
-    const data = await response.json();
-    if (!response.ok || !data?.success) {
-      throw new Error(data?.message || 'Failed to fetch orders');
+    } catch (error) {
+      console.error('Error fetching seller orders:', error);
+    } finally {
+      setOrdersLoading(false);
     }
-    return data.data || [];
   };
 
-  const generatePdfReport = async () => {
-    if (!localStorage.getItem('sellerToken')) {
-      alert('Seller session missing. Please login again.');
-      return;
-    }
+  const getStockStatus = (stock) => {
+    const value = Number(stock);
+    if (isNaN(value) || value <= 0) return 'Out of Stock';
+    if (value <= 10) return 'Low Stock';
+    return 'In Stock';
+  };
 
+  const handleGenerateReportPDF = () => {
     try {
-      setGeneratingPdf(true);
+      const fileDate = new Date().toISOString().slice(0, 10);
+      const width = 842;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const sellerName = seller?.name || 'Seller Dashboard';
+      const generatedAt = new Date().toLocaleString();
 
-      // Ensure we have the latest product list for the report.
-      let reportProducts = products;
-      if (!reportProducts || reportProducts.length === 0) {
-        const response = await fetch('http://localhost:5000/api/products/seller', {
-          headers: { ...authHeaders }
-        });
-        const data = await response.json();
-        if (response.ok && data?.success) {
-          reportProducts = data.data || [];
-        }
-      }
+      doc.setFillColor(20, 88, 150);
+      doc.rect(0, 0, width, 70, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.text('Seller Performance Report', 40, 42);
+      doc.setFontSize(11);
+      doc.text(`Seller: ${sellerName}`, 40, 62);
+      doc.text(`Generated: ${generatedAt}`, width - 240, 62);
 
-      const reportOrders = await fetchOrdersForReport();
+      const productSummary = products.reduce((summary, product) => {
+        const stock = Number(product.stock) || 0;
+        summary.totalValue += stock * (Number(product.price) || 0);
+        if (stock > 0 && stock <= 10) summary.lowStockCount += 1;
+        if (stock <= 0) summary.outOfStockCount += 1;
+        return summary;
+      }, { totalValue: 0, lowStockCount: 0, outOfStockCount: 0 });
 
-      const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-      const pageWidth = doc.internal.pageSize.getWidth();
+      const overviewY = 90;
+      const boxWidth = (width - 100) / 4;
+      const stats = [
+        { label: 'Products', value: products.length },
+        { label: 'Orders', value: orders.length },
+        { label: 'Stock Value', value: `Rs ${productSummary.totalValue.toFixed(2)}` },
+        { label: 'Low Stock', value: productSummary.lowStockCount }
+      ];
 
-      const now = new Date();
-      const sellerName = seller?.businessName || seller?.fullName || seller?.firstName || 'Seller';
-      const title = 'Seller Report (Products & Orders)';
+      stats.forEach((stat, index) => {
+        const x = 40 + (boxWidth + 10) * index;
+        doc.setFillColor(244, 247, 252);
+        doc.roundedRect(x, overviewY, boxWidth, 62, 10, 10, 'F');
+        doc.setTextColor(60, 72, 96);
+        doc.setFontSize(10);
+        doc.text(stat.label, x + 12, overviewY + 22);
+        doc.setFontSize(16);
+        doc.setTextColor(20, 88, 150);
+        doc.text(String(stat.value), x + 12, overviewY + 45);
+      });
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
-      doc.text(title, 40, 50);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(`Generated for: ${sellerName}`, 40, 70);
-      doc.text(`Generated at: ${now.toLocaleString()}`, 40, 85);
-      doc.text(`Total Products: ${reportProducts.length}`, 40, 100);
-      doc.text(`Total Orders: ${reportOrders.length}`, 40, 115);
-
-      // PRODUCTS TABLE
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.text('Products', 40, 145);
+      const sectionY = overviewY + 90;
+      doc.setTextColor(20, 88, 150);
+      doc.setFontSize(14);
+      doc.text('Product Inventory', 40, sectionY);
 
       autoTable(doc, {
-        startY: 155,
-        head: [[
-          'ID',
-          'Title',
-          'Description',
-          'Category',
-          'Price (Rs)',
-          'Stock',
-          'Status',
-          'Rating',
-          'Reviews',
-          'Created'
-        ]],
-        body: (reportProducts || []).map((p) => [
-          String(p?._id || '').slice(0, 8),
-          p?.title || '',
-          p?.description || '',
-          p?.category || '',
-          p?.price ?? '',
-          p?.stock ?? '',
-          p?.status || '',
-          typeof p?.rating === 'number' ? p.rating.toFixed(1) : (p?.rating ?? ''),
-          p?.numOfReviews ?? '',
-          p?.createdAt ? new Date(p.createdAt).toLocaleDateString() : ''
+        startY: sectionY + 15,
+        head: [[ 'Item ID', 'Name', 'Category', 'Unit Price', 'Stock', 'Status' ]],
+        body: products.map(product => [
+          product._id || '-',
+          product.title || '-',
+          product.category || '-',
+          product.price != null ? `Rs ${product.price}` : '-',
+          product.stock != null ? product.stock : '-',
+          getStockStatus(product.stock)
         ]),
-        styles: { fontSize: 7, cellPadding: 4, overflow: 'linebreak' },
-        headStyles: { fillColor: [22, 163, 74] },
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 6 },
+        headStyles: { fillColor: [20, 88, 150], textColor: 255 },
+        alternateRowStyles: { fillColor: [245, 248, 252] },
         margin: { left: 40, right: 40 }
       });
 
-      // ORDER TABLE
-      const nextY = (doc.lastAutoTable?.finalY || 155) + 30;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.text('Orders', 40, nextY);
+      if (orders.length > 0) {
+        doc.addPage();
+        doc.setFillColor(20, 88, 150);
+        doc.rect(0, 0, width, 50, 'F');
+        doc.setFontSize(16);
+        doc.setTextColor(255, 255, 255);
+        doc.text('Seller Order Summary', 40, 34);
 
-      autoTable(doc, {
-        startY: nextY + 10,
-        head: [[
-          'Order ID',
-          'Buyer',
-          'Items',
-          'Total (Rs)',
-          'Status',
-          'Payment',
-          'Method',
-          'Created'
-        ]],
-        body: (reportOrders || []).map((o) => {
-          const buyerName = [o?.buyer?.firstName, o?.buyer?.lastName].filter(Boolean).join(' ') || (o?.buyer?.email || '');
-          const itemsText = (o?.orderItems || [])
-            .map((it) => `${it?.title || 'Item'} x${it?.quantity ?? ''} (Rs ${it?.price ?? ''})`)
-            .join('\n');
+        const orderStatusCounts = orders.reduce((counts, order) => {
+          const status = order.orderStatus || 'unknown';
+          counts[status] = (counts[status] || 0) + 1;
+          return counts;
+        }, {});
 
-          return [
-            String(o?._id || '').slice(0, 8),
-            buyerName,
-            itemsText,
-            o?.totalAmount ?? '',
-            o?.orderStatus || '',
-            o?.paymentStatus || '',
-            o?.deliveryMethod || '',
-            o?.createdAt ? new Date(o.createdAt).toLocaleDateString() : ''
-          ];
-        }),
-        styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
-        headStyles: { fillColor: [22, 163, 74] },
-        columnStyles: {
-          0: { cellWidth: 50 },
-          1: { cellWidth: 80 },
-          2: { cellWidth: 170 },
-          3: { cellWidth: 55 },
-          4: { cellWidth: 52 },
-          5: { cellWidth: 52 },
-          6: { cellWidth: 52 },
-          7: { cellWidth: 55 }
-        },
-        margin: { left: 40, right: 40 },
-        didDrawPage: (data) => {
-          // Simple footer with page number
-          const pageCount = doc.getNumberOfPages();
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(9);
-          doc.text(`Page ${pageCount}`, pageWidth - 80, doc.internal.pageSize.getHeight() - 20);
-        }
-      });
+        const orderOverviewY = 70;
+        const orderBoxes = [
+          { label: 'Total Orders', value: orders.length },
+          { label: 'Pending', value: orderStatusCounts.pending || 0 },
+          { label: 'Done', value: orderStatusCounts.done || orderStatusCounts.delivered || 0 },
+          { label: 'Cancelled', value: orderStatusCounts.cancelled || 0 }
+        ];
 
-      doc.save(`unimart-seller-report-${now.toISOString().slice(0, 10)}.pdf`);
-    } catch (e) {
-      console.error('PDF generation error:', e);
-      alert(e?.message || 'Failed to generate PDF report');
-    } finally {
-      setGeneratingPdf(false);
+        orderBoxes.forEach((box, index) => {
+          const x = 40 + (boxWidth + 10) * index;
+          doc.setFillColor(245, 247, 252);
+          doc.roundedRect(x, orderOverviewY, boxWidth, 54, 10, 10, 'F');
+          doc.setFontSize(10);
+          doc.setTextColor(60, 72, 96);
+          doc.text(box.label, x + 12, orderOverviewY + 20);
+          doc.setFontSize(16);
+          doc.setTextColor(20, 88, 150);
+          doc.text(String(box.value), x + 12, orderOverviewY + 40);
+        });
+
+        doc.setFontSize(14);
+        doc.setTextColor(20, 88, 150);
+        doc.text('Order Details', 40, orderOverviewY + 85);
+
+        autoTable(doc, {
+          startY: orderOverviewY + 95,
+          head: [[ 'Order ID', 'Buyer', 'Items', 'Total (Rs)', 'Status' ]],
+          body: orders.map(order => [
+            order._id?.substring(0, 10) || '-',
+            `${order.buyer?.firstName || ''} ${order.buyer?.lastName || ''}`.trim() || '-',
+            order.orderItems?.map(item => `${item.title} (x${item.quantity})`).join(', ') || '-',
+            order.totalAmount != null ? `Rs ${order.totalAmount}` : '-',
+            order.orderStatus || '-'
+          ]),
+          theme: 'grid',
+          styles: { fontSize: 9, cellPadding: 6 },
+          headStyles: { fillColor: [20, 88, 150], textColor: 255 },
+          alternateRowStyles: { fillColor: [245, 248, 252] },
+          margin: { left: 40, right: 40 }
+        });
+      }
+
+      doc.save(`Seller_Report_${fileDate}.pdf`);
+    } catch (error) {
+      console.error('Error generating seller report PDF:', error);
+      alert('Unable to generate report PDF. Please try again.');
     }
   };
 
@@ -228,9 +226,6 @@ const SellerProducts = ({ seller }) => {
       price: product.price,
       stock: product.stock,
       category: product.category,
-      condition: product.condition || 'new',
-      availability: product.availability || 'in_stock',
-      tags: Array.isArray(product.tags) ? product.tags.join(', ') : '',
       image: product.images && product.images.length > 0 ? product.images[0] : ''
     });
     setEditingId(product._id);
@@ -241,8 +236,8 @@ const SellerProducts = ({ seller }) => {
     e.preventDefault();
     try {
       const url = editingId
-        ? `http://127.0.0.1:5000/api/products/seller/${editingId}`
-        : 'http://127.0.0.1:5000/api/products/seller';
+        ? `http://localhost:5000/api/products/seller/${editingId}`
+        : 'http://localhost:5000/api/products/seller';
       const method = editingId ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -253,7 +248,6 @@ const SellerProducts = ({ seller }) => {
         },
         body: JSON.stringify({
           ...formData,
-          tags: formData.tags,
           images: [formData.image]
         })
       });
@@ -266,7 +260,7 @@ const SellerProducts = ({ seller }) => {
         }
         setShowForm(false);
         setEditingId(null);
-        setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' });
+        setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' });
       } else {
         alert(data.message || `Error ${editingId ? 'updating' : 'adding'} product`);
       }
@@ -278,7 +272,7 @@ const SellerProducts = ({ seller }) => {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
-      const response = await fetch(`http://127.0.0.1:5000/api/products/seller/${id}`, {
+      const response = await fetch(`http://localhost:5000/api/products/seller/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
@@ -297,166 +291,35 @@ const SellerProducts = ({ seller }) => {
     }
   };
 
-  const handleGeneratePDF = () => {
-    if (products.length === 0) {
-      alert('No products available to generate PDF.');
-      return;
-    }
-
-    const doc = new jsPDF({ orientation: 'landscape' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-
-    // Header with company branding
-    doc.setFillColor(31, 41, 55); // Dark gray background
-    doc.rect(0, 0, pageWidth, 25, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('UniMart', 14, 16);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Seller Product Management Report', 14, 22);
-
-    // Report details
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Seller: ${seller?.businessName || seller?.name || 'Unknown'}`, 14, 35);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 42);
-
-    // Add a subtle border
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.5);
-    doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
-
-    const rows = products.map((product, index) => {
-      const stock = Number(product.stock) || 0;
-      const price = Number(product.price) || 0;
-      const status = stock === 0 ? 'Out of Stock' : stock <= 10 ? 'Low Stock' : 'In Stock';
-      return [
-        product._id || `Item-${index + 1}`,
-        product.title || 'Untitled',
-        stock.toString(),
-        `Rs ${price.toFixed(2)}`,
-        status
-      ];
-    });
-
-    autoTable(doc, {
-      startY: 50,
-      head: [['Item ID', 'Item Name', 'Quantity in Stock', 'Unit Price', 'Status']],
-      body: rows,
-      headStyles: {
-        fillColor: [31, 41, 55],
-        textColor: [255, 255, 255],
-        halign: 'center',
-        fontStyle: 'bold',
-        fontSize: 11
-      },
-      bodyStyles: {
-        halign: 'left',
-        fontSize: 10,
-        cellPadding: 4
-      },
-      alternateRowStyles: {
-        fillColor: [248, 250, 252] // Light gray for alternating rows
-      },
-      styles: {
-        lineColor: [200, 200, 200],
-        lineWidth: 0.1
-      },
-      columnStyles: {
-        0: { cellWidth: 40 }, // Item ID
-        1: { cellWidth: 80 }, // Item Name
-        2: { cellWidth: 40, halign: 'center' }, // Quantity
-        3: { cellWidth: 40, halign: 'right' }, // Price
-        4: { cellWidth: 40, halign: 'center' } // Status
-      },
-      didParseCell: function (data) {
-        // Color code status cells
-        if (data.column.index === 4) {
-          if (data.cell.raw === 'Out of Stock') {
-            data.cell.styles.fillColor = [220, 38, 38]; // Red
-            data.cell.styles.textColor = [255, 255, 255];
-          } else if (data.cell.raw === 'Low Stock') {
-            data.cell.styles.fillColor = [245, 158, 11]; // Orange
-            data.cell.styles.textColor = [0, 0, 0];
-          } else {
-            data.cell.styles.fillColor = [34, 197, 94]; // Green
-            data.cell.styles.textColor = [255, 255, 255];
-          }
-        }
-      }
-    });
-
-    // Summary section with better styling
-    const summaryY = doc.lastAutoTable.finalY + 20;
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(31, 41, 55);
-    doc.text('Summary', 14, summaryY);
-
-    const totalItems = products.length;
-    const totalValue = products.reduce((sum, product) => {
-      const stock = Number(product.stock) || 0;
-      const price = Number(product.price) || 0;
-      return sum + stock * price;
-    }, 0);
-    const lowStockCount = products.filter((product) => Number(product.stock) > 0 && Number(product.stock) <= 10).length;
-    const outOfStockCount = products.filter((product) => Number(product.stock) === 0).length;
-
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Total items: ${totalItems}`, 14, summaryY + 10);
-    doc.text(`Total stock value: Rs ${totalValue.toFixed(2)}`, 14, summaryY + 18);
-    doc.text(`Low-stock items: ${lowStockCount}`, 14, summaryY + 26);
-    doc.text(`Out-of-stock items: ${outOfStockCount}`, 14, summaryY + 34);
-
-    // Reorder Recommendation with better formatting
-    const needsReorder = products.filter((product) => Number(product.stock) === 0 || (Number(product.stock) > 0 && Number(product.stock) <= 10));
-    const noteStartY = summaryY + 50;
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(31, 41, 55);
-    doc.text('Reorder Recommendation', 14, noteStartY);
-
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    const recommendation = needsReorder.length > 0
-      ? `Reorder ${needsReorder.map((p) => p.title || p._id).join(', ')} to avoid stockouts.`
-      : 'All products are currently at healthy stock levels.';
-    const splitText = doc.splitTextToSize(recommendation, 250);
-    doc.text(splitText, 14, noteStartY + 10);
-
-    // Footer
-    doc.setFontSize(9);
-    doc.setTextColor(128, 128, 128);
-    doc.text('Generated by UniMart Seller Dashboard', pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-    doc.save('Seller_Product_Report.pdf');
-  };
-
   if (loading) return <div>Loading products...</div>;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-900">Manage Products</h2>
-        <button
-          onClick={() => {
-            setShowForm(!showForm);
-            if (showForm) {
-              setEditingId(null);
-              setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' });
-            }
-          }}
-          className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700"
-        >
-          <FaPlus /> {editingId && showForm ? 'Cancel Edit' : 'Add Product'}
-        </button>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Manage Products</h2>
+          <p className="text-sm text-gray-500">Generate product and order reports for your seller dashboard.</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleGenerateReportPDF}
+            className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700"
+          >
+            Report PDF
+          </button>
+          <button
+            onClick={() => {
+              setShowForm(!showForm);
+              if (showForm) {
+                setEditingId(null);
+                setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' });
+              }
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700"
+          >
+            <FaPlus /> {editingId && showForm ? 'Cancel Edit' : 'Add Product'}
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -471,24 +334,6 @@ const SellerProducts = ({ seller }) => {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
-            <select name="condition" value={formData.condition} onChange={handleInputChange} className="border p-2 rounded">
-              <option value="new">New</option>
-              <option value="used">Used</option>
-              <option value="like_new">Like New</option>
-            </select>
-            <select name="availability" value={formData.availability} onChange={handleInputChange} className="border p-2 rounded">
-              <option value="in_stock">In Stock</option>
-              <option value="sold">Sold</option>
-              <option value="reserved">Reserved</option>
-            </select>
-            <input
-              type="text"
-              name="tags"
-              placeholder="Tags (comma separated)"
-              value={formData.tags}
-              onChange={handleInputChange}
-              className="border p-2 rounded"
-            />
             <div className="col-span-1 md:col-span-2 border p-3 rounded bg-white">
               <label className="block text-sm font-medium text-gray-700 mb-2">Upload Product Image</label>
               <input type="file" accept="image/*" onChange={handleImageChange} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100" />
@@ -503,7 +348,7 @@ const SellerProducts = ({ seller }) => {
           </div>
           <div className="mt-4 flex gap-2">
             <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingId ? 'Update Product' : 'Save Product'}</button>
-            <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' }); }} className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500">Cancel</button>
+            <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' }); }} className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500">Cancel</button>
           </div>
         </form>
       )}
@@ -515,9 +360,6 @@ const SellerProducts = ({ seller }) => {
               <th className="py-3 px-4 text-left">Product</th>
               <th className="py-3 px-4 text-left">Description</th>
               <th className="py-3 px-4 text-left">Category</th>
-              <th className="py-3 px-4 text-left">Condition</th>
-              <th className="py-3 px-4 text-left">Availability</th>
-              <th className="py-3 px-4 text-left">Tags</th>
               <th className="py-3 px-4 text-left">Price</th>
               <th className="py-3 px-4 text-left">Stock</th>
               <th className="py-3 px-4 text-left">Status</th>
@@ -528,23 +370,18 @@ const SellerProducts = ({ seller }) => {
             {products.map(product => (
               <tr key={product._id} className="hover:bg-gray-50">
                 <td className="py-3 px-4 flex items-center gap-3">
-                  <img src={product.images[0] || 'https://placehold.co/50x50'} alt={product.title} className="w-10 h-10 object-cover rounded" />
+                  <img src={product.images[0] || 'https://via.placeholder.com/50'} alt={product.title} className="w-10 h-10 object-cover rounded" />
                   <span className="font-medium text-gray-900">{product.title}</span>
                 </td>
                 <td className="py-3 px-4 max-w-[150px] truncate text-gray-500" title={product.description}>
                   {product.description}
                 </td>
                 <td className="py-3 px-4">{product.category}</td>
-                <td className="py-3 px-4">{String(product.condition || 'new').replace('_', ' ')}</td>
-                <td className="py-3 px-4">{String(product.availability || 'in_stock').replace('_', ' ')}</td>
-                <td className="py-3 px-4 max-w-[180px] truncate" title={Array.isArray(product.tags) ? product.tags.join(', ') : ''}>
-                  {Array.isArray(product.tags) && product.tags.length > 0 ? product.tags.join(', ') : '-'}
-                </td>
                 <td className="py-3 px-4">Rs {product.price}</td>
                 <td className="py-3 px-4">{product.stock}</td>
                 <td className="py-3 px-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {product.status}
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStockStatus(product.stock) === 'In Stock' ? 'bg-green-100 text-green-800' : getStockStatus(product.stock) === 'Low Stock' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                    {getStockStatus(product.stock)}
                   </span>
                 </td>
                 <td className="py-3 px-4">
@@ -559,7 +396,7 @@ const SellerProducts = ({ seller }) => {
             ))}
             {products.length === 0 && (
               <tr>
-                <td colSpan="10" className="text-center py-8 text-gray-500">No products found. Add your first product!</td>
+                <td colSpan="7" className="text-center py-8 text-gray-500">No products found. Add your first product!</td>
               </tr>
             )}
           </tbody>

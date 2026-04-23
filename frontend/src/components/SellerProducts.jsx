@@ -297,6 +297,148 @@ const SellerProducts = ({ seller }) => {
     }
   };
 
+  const handleGeneratePDF = () => {
+    if (products.length === 0) {
+      alert('No products available to generate PDF.');
+      return;
+    }
+
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // Header with company branding
+    doc.setFillColor(31, 41, 55); // Dark gray background
+    doc.rect(0, 0, pageWidth, 25, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('UniMart', 14, 16);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Seller Product Management Report', 14, 22);
+
+    // Report details
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Seller: ${seller?.businessName || seller?.name || 'Unknown'}`, 14, 35);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 42);
+
+    // Add a subtle border
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.5);
+    doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
+
+    const rows = products.map((product, index) => {
+      const stock = Number(product.stock) || 0;
+      const price = Number(product.price) || 0;
+      const status = stock === 0 ? 'Out of Stock' : stock <= 10 ? 'Low Stock' : 'In Stock';
+      return [
+        product._id || `Item-${index + 1}`,
+        product.title || 'Untitled',
+        stock.toString(),
+        `Rs ${price.toFixed(2)}`,
+        status
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 50,
+      head: [['Item ID', 'Item Name', 'Quantity in Stock', 'Unit Price', 'Status']],
+      body: rows,
+      headStyles: {
+        fillColor: [31, 41, 55],
+        textColor: [255, 255, 255],
+        halign: 'center',
+        fontStyle: 'bold',
+        fontSize: 11
+      },
+      bodyStyles: {
+        halign: 'left',
+        fontSize: 10,
+        cellPadding: 4
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252] // Light gray for alternating rows
+      },
+      styles: {
+        lineColor: [200, 200, 200],
+        lineWidth: 0.1
+      },
+      columnStyles: {
+        0: { cellWidth: 40 }, // Item ID
+        1: { cellWidth: 80 }, // Item Name
+        2: { cellWidth: 40, halign: 'center' }, // Quantity
+        3: { cellWidth: 40, halign: 'right' }, // Price
+        4: { cellWidth: 40, halign: 'center' } // Status
+      },
+      didParseCell: function (data) {
+        // Color code status cells
+        if (data.column.index === 4) {
+          if (data.cell.raw === 'Out of Stock') {
+            data.cell.styles.fillColor = [220, 38, 38]; // Red
+            data.cell.styles.textColor = [255, 255, 255];
+          } else if (data.cell.raw === 'Low Stock') {
+            data.cell.styles.fillColor = [245, 158, 11]; // Orange
+            data.cell.styles.textColor = [0, 0, 0];
+          } else {
+            data.cell.styles.fillColor = [34, 197, 94]; // Green
+            data.cell.styles.textColor = [255, 255, 255];
+          }
+        }
+      }
+    });
+
+    // Summary section with better styling
+    const summaryY = doc.lastAutoTable.finalY + 20;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31, 41, 55);
+    doc.text('Summary', 14, summaryY);
+
+    const totalItems = products.length;
+    const totalValue = products.reduce((sum, product) => {
+      const stock = Number(product.stock) || 0;
+      const price = Number(product.price) || 0;
+      return sum + stock * price;
+    }, 0);
+    const lowStockCount = products.filter((product) => Number(product.stock) > 0 && Number(product.stock) <= 10).length;
+    const outOfStockCount = products.filter((product) => Number(product.stock) === 0).length;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Total items: ${totalItems}`, 14, summaryY + 10);
+    doc.text(`Total stock value: Rs ${totalValue.toFixed(2)}`, 14, summaryY + 18);
+    doc.text(`Low-stock items: ${lowStockCount}`, 14, summaryY + 26);
+    doc.text(`Out-of-stock items: ${outOfStockCount}`, 14, summaryY + 34);
+
+    // Reorder Recommendation with better formatting
+    const needsReorder = products.filter((product) => Number(product.stock) === 0 || (Number(product.stock) > 0 && Number(product.stock) <= 10));
+    const noteStartY = summaryY + 50;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31, 41, 55);
+    doc.text('Reorder Recommendation', 14, noteStartY);
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    const recommendation = needsReorder.length > 0
+      ? `Reorder ${needsReorder.map((p) => p.title || p._id).join(', ')} to avoid stockouts.`
+      : 'All products are currently at healthy stock levels.';
+    const splitText = doc.splitTextToSize(recommendation, 250);
+    doc.text(splitText, 14, noteStartY + 10);
+
+    // Footer
+    doc.setFontSize(9);
+    doc.setTextColor(128, 128, 128);
+    doc.text('Generated by UniMart Seller Dashboard', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+    doc.save('Seller_Product_Report.pdf');
+  };
+
   if (loading) return <div>Loading products...</div>;
 
   return (

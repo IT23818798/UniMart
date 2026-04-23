@@ -52,13 +52,13 @@ router.get('/dashboard', adminAuth, checkPermission('view_analytics'), getDashbo
 
 // @desc    Get all products
 // @route   GET /api/admin/products
-// @access  Private (admin or super_admin)
-router.get('/products', adminAuth, getAllProducts);
+// @access  Private (requires view_analytics permission)
+router.get('/products', adminAuth, checkPermission('view_analytics'), getAllProducts);
 
 // @desc    Get all orders
 // @route   GET /api/admin/orders
-// @access  Private (admin or super_admin)
-router.get('/orders', adminAuth, getAllOrders);
+// @access  Private (requires view_analytics permission)
+router.get('/orders', adminAuth, checkPermission('view_analytics'), getAllOrders);
 
 // @desc    Get all admins
 // @route   GET /api/admin/all

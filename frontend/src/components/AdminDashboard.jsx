@@ -3165,8 +3165,8 @@ const AdminDashboard = ({ admin, onLogout }) => {
     { id: 'admins', icon: <FaUsers />, label: 'Admins', permission: 'manage_users' },
     { id: 'buyers', icon: <FaUserFriends />, label: 'Buyers', permission: 'manage_users' },
     { id: 'sellers', icon: <FaUserShield />, label: 'Sellers', permission: 'manage_sellers' },
-    { id: 'products', icon: <FaBoxOpen />, label: 'Products', permission: 'manage_products' },
-    { id: 'orders', icon: <FaShoppingCart />, label: 'Orders', permission: 'manage_orders' },
+    { id: 'products', icon: <FaBoxOpen />, label: 'Products', permission: 'view_analytics' },
+    { id: 'orders', icon: <FaShoppingCart />, label: 'Orders', permission: 'view_analytics' },
     { id: 'profile', icon: <FaUser />, label: 'Profile', permission: 'view_analytics' },
     { id: 'settings', icon: <FaCog />, label: 'Settings', permission: 'manage_settings' },
   ];

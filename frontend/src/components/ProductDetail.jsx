@@ -56,24 +56,19 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
   };
 
   const fetchProductDetails = async () => {
-    const response = await fetch(`http://localhost:5000/api/products/${productId}`);
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error('Failed to fetch product details');
     try {
       const response = await fetch(`http://127.0.0.1:5000/api/products/${productId}`);
       const data = await response.json();
-      if (data.success) {
-        setProduct(data.data);
+
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to fetch product details');
       }
+
+      return data.data;
     } catch (error) {
       console.error('Error fetching product details:', error);
-    } finally {
-      setLoading(false);
+      throw error;
     }
-
-    return data.data;
   };
 
   const { data: cachedProduct, loading, error, refetch: refetchProduct } = useDataCache(

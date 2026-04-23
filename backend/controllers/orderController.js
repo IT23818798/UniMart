@@ -81,12 +81,6 @@ exports.createOrder = async (req, res) => {
 // Get logged in buyer's orders (Buyer)
 exports.getBuyerOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ buyer: req.buyer.id })
-      .select('-orderItems.image') // Crucial for performance: avoid fetching huge embedded base64 strings
-      .populate('seller', 'businessName')
-      .sort('-createdAt');
-
-    res.status(200).json({ success: true, data: orders, count: orders.length });
     let lastError;
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -97,26 +91,6 @@ exports.getBuyerOrders = async (req, res) => {
           .sort('-createdAt')
           .lean();
 
-        // If no orders found via ObjectId, check if there's any order with buyer as String 
-        if (orders.length === 0) {
-          const mongoose = require('mongoose');
-          const rawOrders = await mongoose.connection.db.collection('orders').find({ buyer: req.buyer.id.toString() }).toArray();
-          
-          if (rawOrders.length > 0) {
-            console.log('Found orders with string ID! Fixing them to ObjectId...');
-            for (let ro of rawOrders) {
-               await mongoose.connection.db.collection('orders').updateOne(
-                 { _id: ro._id },
-                 { $set: { buyer: new mongoose.Types.ObjectId(req.buyer.id) } }
-               );
-            }
-            // re-fetch correctly now
-            orders = await Order.find({ buyer: req.buyer.id })
-              .select('orderItems totalAmount orderStatus contactPhone shippingAddress deliveryMethod createdAt seller')
-              .sort('-createdAt')
-              .lean();
-          }
-        }
 
         const sellerIds = [...new Set(
           orders
@@ -158,7 +132,6 @@ exports.getBuyerOrders = async (req, res) => {
 exports.getSellerOrders = async (req, res) => {
   try {
     const orders = await Order.find({ seller: req.seller.id })
-      .select('-orderItems.image') // Crucial for performance: avoid fetching huge embedded base64 strings
       .populate('buyer', 'firstName lastName email')
       .sort('-createdAt');
 

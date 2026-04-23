@@ -11,6 +11,9 @@ const {
   addToWishlist,
   removeFromWishlist,
   addDeliveryAddress,
+  getDeliveryAddresses,
+  updateDeliveryAddress,
+  deleteDeliveryAddress,
   getBuyerReviews,
   getAllBuyers,
   deleteBuyer

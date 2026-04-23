@@ -833,6 +833,9 @@ module.exports = {
   addToWishlist,
   removeFromWishlist,
   addDeliveryAddress,
+  getDeliveryAddresses,
+  updateDeliveryAddress,
+  deleteDeliveryAddress,
   getBuyerReviews,
   getAllBuyers,
   deleteBuyer

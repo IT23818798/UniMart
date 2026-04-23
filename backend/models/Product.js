@@ -35,9 +35,35 @@ const productSchema = new mongoose.Schema({
       message: '{VALUE} is not supported'
     }
   },
+  condition: {
+    type: String,
+    enum: {
+      values: ['new', 'used', 'like_new'],
+      message: '{VALUE} is not supported condition'
+    },
+    default: 'new'
+  },
+  availability: {
+    type: String,
+    enum: {
+      values: ['in_stock', 'sold', 'reserved'],
+      message: '{VALUE} is not supported availability'
+    },
+    default: 'in_stock'
+  },
+  tags: [{
+    type: String,
+    trim: true,
+    lowercase: true
+  }],
   images: [{
     type: String
   }],
+  coverImage: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   status: {
     type: String,
     enum: ['active', 'inactive', 'out_of_stock'],
@@ -45,7 +71,9 @@ const productSchema = new mongoose.Schema({
   },
   rating: {
     type: Number,
-    default: 0
+    default: 0,
+    min: [0, 'Average rating cannot be less than 0'],
+    max: [5, 'Average rating cannot be more than 5']
   },
   numOfReviews: {
     type: Number,
@@ -57,17 +85,24 @@ const productSchema = new mongoose.Schema({
       ref: 'Buyer',
       required: true
     },
+    userId: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'Buyer'
+    },
     name: {
       type: String,
       required: true
     },
     rating: {
       type: Number,
-      required: true
+      required: [true, 'Please provide a rating'],
+      min: [1, 'Rating must be at least 1'],
+      max: [5, 'Rating cannot be more than 5']
     },
     comment: {
       type: String,
-      required: true
+      required: [true, 'Please provide a review comment'],
+      trim: true
     },
     createdAt: {
       type: Date,
@@ -78,6 +113,11 @@ const productSchema = new mongoose.Schema({
   timestamps: true
 });
 
-productSchema.index({ status: 1 });
+productSchema.index({ status: 1, createdAt: -1 });
+productSchema.index({ seller: 1, createdAt: -1 });
+productSchema.index({ category: 1, status: 1, createdAt: -1 });
+productSchema.index({ title: 'text', description: 'text', tags: 'text' });
+productSchema.index({ 'reviews.user': 1, createdAt: -1 });
+productSchema.index({ 'reviews.userId': 1, createdAt: -1 });
 
 module.exports = mongoose.model('Product', productSchema);

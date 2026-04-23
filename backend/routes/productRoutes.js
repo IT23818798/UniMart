@@ -7,7 +7,8 @@ const {
   updateProduct,
   deleteProduct,
   getProductById,
-  createProductReview
+  createProductReview,
+  getProductThumbnail
 } = require('../controllers/productController');
 
 // Middlewares
@@ -26,6 +27,7 @@ router.put('/seller/:id', requireVerifiedSeller, updateProduct);
 router.delete('/seller/:id', requireVerifiedSeller, deleteProduct);
 
 // Dynamic /:id Routes (must be below /seller routes so they don't capture 'seller')
+router.get('/:id/thumbnail', getProductThumbnail);
 router.get('/:id', getProductById);
 router.post('/:id/reviews', authenticateBuyer, createProductReview);
 const { updateProductReview, deleteProductReview } = require('../controllers/productController');

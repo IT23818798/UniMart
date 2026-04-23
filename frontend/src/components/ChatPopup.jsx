@@ -37,7 +37,7 @@ const ChatPopup = ({ currentUser, userType, otherUserId, otherUserType, onClose,
 
     const fetchProduct = async (prodId) => {
         try {
-            const res = await fetch(`http://localhost:5000/api/products/${prodId}`);
+            const res = await fetch(`http://127.0.0.1:5000/api/products/${prodId}`);
             const data = await res.json();
             if (data.success) setActiveProduct(data.data);
         } catch (e) { console.error(e); }
@@ -45,7 +45,7 @@ const ChatPopup = ({ currentUser, userType, otherUserId, otherUserType, onClose,
 
     const fetchMessages = async () => {
         try {
-            const res = await fetch(`http://localhost:5000/api/messages/${otherUserId}?otherType=${otherUserType}`, {
+            const res = await fetch(`http://127.0.0.1:5000/api/messages/${otherUserId}?otherType=${otherUserType}`, {
                 headers, credentials: 'include'
             });
             const data = await res.json();
@@ -62,7 +62,7 @@ const ChatPopup = ({ currentUser, userType, otherUserId, otherUserType, onClose,
         e.preventDefault();
         if (!newMessage.trim()) return;
         try {
-            const res = await fetch('http://localhost:5000/api/messages', {
+            const res = await fetch('http://127.0.0.1:5000/api/messages', {
                 method: 'POST',
                 headers,
                 credentials: 'include',

@@ -731,6 +731,112 @@ const AdminManagement = memo(function AdminManagement({
   });
   const [addAdminLoading, setAddAdminLoading] = useState(false);
 
+  const handleGenerateAdminsReportPDF = useCallback(() => {
+    try {
+      const adminList = Array.isArray(admins) ? admins : [];
+      if (adminList.length === 0) {
+        showToast?.('No admins available to generate report.', 'error');
+        return;
+      }
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const now = new Date();
+
+      doc.setFontSize(18);
+      doc.text('Unimart - Admins Report', 40, 40);
+      doc.setFontSize(10);
+      doc.text(`Generated: ${now.toLocaleString()}`, 40, 60);
+      doc.text(`Total admins: ${adminList.length}`, 40, 74);
+
+      const toText = (value) => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'number') return String(value);
+        if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+        if (typeof value === 'object') return JSON.stringify(value);
+        return String(value);
+      };
+
+      const formatAddress = (address) => {
+        if (!address) return '';
+        if (typeof address === 'string') return address;
+        if (typeof address === 'object') {
+          const parts = [];
+          if (address.street) parts.push(address.street);
+          if (address.city) parts.push(address.city);
+          if (address.state) parts.push(address.state);
+          if (address.zipCode) parts.push(address.zipCode);
+          if (address.country) parts.push(address.country);
+          const joined = parts.filter(Boolean).join(', ');
+          return joined || toText(address);
+        }
+        return toText(address);
+      };
+
+      const rows = adminList.map((adminUser) => {
+        const firstName = toText(adminUser?.firstName).trim();
+        const lastName = toText(adminUser?.lastName).trim();
+        const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
+        const joined = adminUser?.createdAt ? new Date(adminUser.createdAt) : null;
+        const lastLogin = adminUser?.lastLogin ? new Date(adminUser.lastLogin) : null;
+
+        return [
+          toText(adminUser?._id),
+          fullName,
+          toText(adminUser?.email),
+          toText(adminUser?.phone),
+          toText(adminUser?.role),
+          adminUser?.isActive ? 'Active' : 'Inactive',
+          formatAddress(adminUser?.address),
+          joined && !Number.isNaN(joined.getTime()) ? joined.toLocaleDateString() : '',
+          lastLogin && !Number.isNaN(lastLogin.getTime()) ? lastLogin.toLocaleDateString() : '',
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 90,
+        head: [[
+          'ID',
+          'Full Name',
+          'Email',
+          'Phone',
+          'Role',
+          'Status',
+          'Address',
+          'Joined',
+          'Last Login'
+        ]],
+        body: rows,
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+          overflow: 'linebreak'
+        },
+        headStyles: {
+          fontSize: 8,
+        },
+        columnStyles: {
+          0: { cellWidth: 70 },
+          1: { cellWidth: 90 },
+          2: { cellWidth: 150 },
+          3: { cellWidth: 80 },
+          4: { cellWidth: 70 },
+          5: { cellWidth: 60 },
+          6: { cellWidth: 220 },
+          7: { cellWidth: 60 },
+          8: { cellWidth: 70 },
+        }
+      });
+
+      const fileDate = now.toISOString().slice(0, 10);
+      doc.save(`Unimart_Admins_Report_${fileDate}.pdf`);
+      showToast?.('Admin report generated successfully.', 'success');
+    } catch (error) {
+      console.error('Generate admins PDF error:', error);
+      showToast?.('Failed to generate admin report PDF.', 'error');
+    }
+  }, [admins, showToast]);
+
   const filteredAdmins = useMemo(() => {
     // Ensure admins is always an array
     if (!Array.isArray(admins)) {
@@ -831,7 +937,7 @@ const AdminManagement = memo(function AdminManagement({
     try {
       setAdminUpdateLoading(true);
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/users/${selectedAdmin._id}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/users/${selectedAdmin._id}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -864,7 +970,7 @@ const AdminManagement = memo(function AdminManagement({
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/users/${adminId}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/users/${adminId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -908,7 +1014,7 @@ const AdminManagement = memo(function AdminManagement({
     try {
       setAddAdminLoading(true);
       const token = localStorage.getItem('adminToken');
-      const response = await fetch('http://localhost:5000/api/admin/register', {
+      const response = await fetch('http://127.0.0.1:5000/api/admin/register', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -947,10 +1053,24 @@ const AdminManagement = memo(function AdminManagement({
         <div className="header-content">
           <h1>Admin Management</h1>
           <p>Manage administrator accounts and permissions</p>
+
+          <div className="actions-group">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleGenerateAdminsReportPDF}
+              disabled={adminsLoading || !Array.isArray(admins) || admins.length === 0}
+              title="Generate Admins Report PDF"
+            >
+              <FaDownload /> Admins Report
+            </button>
+          </div>
         </div>
-        <button className="add-seller-btn" onClick={() => setIsAddingAdmin(true)}>
-          <FaPlus /> Add New Admin
-        </button>
+        <div className="header-actions">
+          <button className="add-seller-btn" onClick={() => setIsAddingAdmin(true)}>
+            <FaPlus /> Add New Admin
+          </button>
+        </div>
       </div>
 
       <div className="seller-controls">
@@ -1256,6 +1376,115 @@ const SellerManagement = memo(function SellerManagement({
   const [editSellerData, setEditSellerData] = useState({});
   const [sellerUpdateLoading, setSellerUpdateLoading] = useState(false);
 
+  const handleGenerateSellersReportPDF = useCallback(() => {
+    try {
+      const sellerList = Array.isArray(sellers) ? sellers : [];
+      if (sellerList.length === 0) {
+        showToast('No sellers available to export.', 'error');
+        return;
+      }
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const now = new Date();
+
+      doc.setFontSize(18);
+      doc.text('Unimart - Sellers Report', 40, 40);
+      doc.setFontSize(10);
+      doc.text(`Generated: ${now.toLocaleString()}`, 40, 60);
+      doc.text(`Total sellers: ${sellerList.length}`, 40, 74);
+
+      const toText = (value) => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'number') return String(value);
+        if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+        return '';
+      };
+
+      const formatSellerAddress = (address) => {
+        if (!address) return '';
+        if (typeof address === 'string') return address;
+        if (typeof address === 'object') {
+          const parts = [address.street, address.city, address.state, address.zipCode, address.country].filter(Boolean);
+          return parts.join(', ');
+        }
+        return '';
+      };
+
+      const rows = sellerList.map((seller) => {
+        const joined = seller.createdAt ? new Date(seller.createdAt).toLocaleDateString() : '';
+        const status = seller.isActive ? 'Active' : 'Inactive';
+        const verification = seller.verificationStatus || 'Pending';
+        const revenue = seller.revenue ? `Rs ${Number(seller.revenue).toLocaleString()}` : 'Rs 0';
+        return [
+          toText(seller._id ? String(seller._id).slice(0, 8) : ''),
+          toText(seller.fullName || `${seller.firstName || ''} ${seller.lastName || ''}`.trim()),
+          toText(seller.businessName),
+          toText(seller.email),
+          toText(seller.phone),
+          toText(formatSellerAddress(seller.address) || seller.address),
+          toText(seller.businessType),
+          toText(seller.businessLicense),
+          toText(verification),
+          toText(status),
+          toText(seller.productCount ?? 0),
+          revenue,
+          joined,
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 90,
+        head: [[
+          'ID',
+          'Full Name',
+          'Business Name',
+          'Email',
+          'Phone',
+          'Address',
+          'Business Type',
+          'License',
+          'Verification',
+          'Account',
+          'Products',
+          'Revenue',
+          'Joined'
+        ]],
+        body: rows,
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+          overflow: 'linebreak'
+        },
+        headStyles: {
+          fontSize: 8,
+        },
+        columnStyles: {
+          0: { cellWidth: 55 },
+          1: { cellWidth: 90 },
+          2: { cellWidth: 90 },
+          3: { cellWidth: 120 },
+          4: { cellWidth: 70 },
+          5: { cellWidth: 140 },
+          6: { cellWidth: 80 },
+          7: { cellWidth: 90 },
+          8: { cellWidth: 70 },
+          9: { cellWidth: 55 },
+          10: { cellWidth: 55 },
+          11: { cellWidth: 70 },
+          12: { cellWidth: 60 },
+        }
+      });
+
+      const fileDate = now.toISOString().slice(0, 10);
+      doc.save(`Unimart_Sellers_Report_${fileDate}.pdf`);
+      showToast('Seller report generated successfully.', 'success');
+    } catch (error) {
+      console.error('Generate sellers PDF error:', error);
+      showToast('Failed to generate seller report PDF.', 'error');
+    }
+  }, [sellers, showToast]);
+
   const filteredSellers = useMemo(
     () => {
       // Ensure sellers is always an array
@@ -1343,7 +1572,7 @@ const SellerManagement = memo(function SellerManagement({
     try {
       setSellerUpdateLoading(true);
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/sellers/${selectedSeller._id}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/sellers/${selectedSeller._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         credentials: 'include',
@@ -1375,7 +1604,7 @@ const SellerManagement = memo(function SellerManagement({
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/sellers/${sellerId}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/sellers/${sellerId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1408,9 +1637,23 @@ const SellerManagement = memo(function SellerManagement({
 
   return (
     <div className="seller-management">
-      <div className="dashboard-header">
-        <h2>Seller Management</h2>
-        <div className="total-count">Total Sellers: {sellers.length}</div>
+      <div className="content-header">
+        <div className="header-left">
+          <h1>Seller Management</h1>
+          <p>Total Sellers: {Array.isArray(sellers) ? sellers.length : 0}</p>
+
+          <div className="actions-group">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleGenerateSellersReportPDF}
+              disabled={sellersLoading || !Array.isArray(sellers) || sellers.length === 0}
+              title="Generate Sellers Report PDF"
+            >
+              <FaDownload /> Sellers Report
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Controls */}
@@ -2035,6 +2278,7 @@ const BuyerDetailsModal = memo(function BuyerDetailsModal({
 const BuyerManagement = memo(function BuyerManagement({
   buyers,
   buyersLoading,
+  showToast,
   handleSearchInputChange,
   handleBuyerStatusChange,
   handleDeleteBuyer,
@@ -2043,6 +2287,119 @@ const BuyerManagement = memo(function BuyerManagement({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+
+  const handleGenerateBuyersReportPDF = useCallback(() => {
+    try {
+      const buyerList = Array.isArray(buyers) ? buyers : [];
+      if (buyerList.length === 0) {
+        showToast?.('No buyers available to generate report.', 'error');
+        return;
+      }
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const now = new Date();
+
+      doc.setFontSize(18);
+      doc.text('Unimart - Buyers Report', 40, 40);
+      doc.setFontSize(10);
+      doc.text(`Generated: ${now.toLocaleString()}`, 40, 60);
+      doc.text(`Total buyers: ${buyerList.length}`, 40, 74);
+
+      const toText = (value) => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'number') return String(value);
+        if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+        if (typeof value === 'object') return JSON.stringify(value);
+        return String(value);
+      };
+
+      const formatBuyerAddress = (address) => {
+        if (!address) return '';
+        if (typeof address === 'string') return address;
+        if (typeof address === 'object') {
+          const parts = [];
+          if (address.street) parts.push(address.street);
+          if (address.city) parts.push(address.city);
+          if (address.state) parts.push(address.state);
+          if (address.zipCode) parts.push(address.zipCode);
+          if (address.country) parts.push(address.country);
+          const joined = parts.filter(Boolean).join(', ');
+          return joined || toText(address);
+        }
+        return toText(address);
+      };
+
+      const rows = buyerList.map((buyer) => {
+        const firstName = toText(buyer?.firstName).trim();
+        const lastName = toText(buyer?.lastName).trim();
+        const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
+        const createdAt = buyer?.createdAt ? new Date(buyer.createdAt) : null;
+        const updatedAt = buyer?.updatedAt ? new Date(buyer.updatedAt) : null;
+        const dob = buyer?.dateOfBirth ? new Date(buyer.dateOfBirth) : null;
+
+        return [
+          toText(buyer?._id),
+          fullName,
+          toText(buyer?.email),
+          toText(buyer?.phone),
+          formatBuyerAddress(buyer?.address),
+          toText(buyer?.status || 'active'),
+          toText(buyer?.orderCount ?? 0),
+          toText(buyer?.totalSpent ?? 0),
+          createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toLocaleDateString() : '',
+          updatedAt && !Number.isNaN(updatedAt.getTime()) ? updatedAt.toLocaleDateString() : '',
+          dob && !Number.isNaN(dob.getTime()) ? dob.toLocaleDateString() : '',
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 90,
+        head: [[
+          'ID',
+          'Full Name',
+          'Email',
+          'Phone',
+          'Address',
+          'Status',
+          'Orders',
+          'Total Spent',
+          'Joined',
+          'Updated',
+          'DOB'
+        ]],
+        body: rows,
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+          overflow: 'linebreak'
+        },
+        headStyles: {
+          fontSize: 8,
+        },
+        columnStyles: {
+          0: { cellWidth: 70 },
+          1: { cellWidth: 90 },
+          2: { cellWidth: 140 },
+          3: { cellWidth: 80 },
+          4: { cellWidth: 170 },
+          5: { cellWidth: 65 },
+          6: { cellWidth: 55 },
+          7: { cellWidth: 70 },
+          8: { cellWidth: 60 },
+          9: { cellWidth: 60 },
+          10: { cellWidth: 60 },
+        }
+      });
+
+      const fileDate = now.toISOString().slice(0, 10);
+      doc.save(`Unimart_Buyers_Report_${fileDate}.pdf`);
+      showToast?.('Buyer report generated successfully.', 'success');
+    } catch (error) {
+      console.error('Generate buyers PDF error:', error);
+      showToast?.('Failed to generate buyer report PDF.', 'error');
+    }
+  }, [buyers, showToast]);
 
   const filteredBuyers = useMemo(
     () => {
@@ -2094,13 +2451,23 @@ const BuyerManagement = memo(function BuyerManagement({
           </div>
           <div className="header-stats">
             <div className="stat-card mini">
-              <div className="stat-number">{buyers.length}</div>
+              <div className="stat-number">{Array.isArray(buyers) ? buyers.length : 0}</div>
               <div className="stat-label">Total Buyers</div>
             </div>
             <div className="stat-card mini">
-              <div className="stat-number">{buyers.filter((b) => (b.status || 'active') === 'active').length}</div>
+              <div className="stat-number">{Array.isArray(buyers) ? buyers.filter((b) => (b.status || 'active') === 'active').length : 0}</div>
               <div className="stat-label">Active</div>
             </div>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleGenerateBuyersReportPDF}
+              disabled={buyersLoading || !Array.isArray(buyers) || buyers.length === 0}
+              title="Generate Buyers Report PDF"
+            >
+              <FaDownload /> Buyers Report
+            </button>
           </div>
         </div>
       </div>
@@ -2255,7 +2622,7 @@ const BuyerManagement = memo(function BuyerManagement({
             <FaUserCheck />
           </div>
           <div className="summary-content">
-            <h4>{buyers.filter((b) => (b.status || 'active') === 'active').length}</h4>
+            <h4>{Array.isArray(buyers) ? buyers.filter((b) => (b.status || 'active') === 'active').length : 0}</h4>
             <p>Active Buyers</p>
           </div>
         </div>
@@ -2264,7 +2631,7 @@ const BuyerManagement = memo(function BuyerManagement({
             <FaUserMinus />
           </div>
           <div className="summary-content">
-            <h4>{buyers.filter((b) => (b.status || 'active') === 'inactive').length}</h4>
+            <h4>{Array.isArray(buyers) ? buyers.filter((b) => (b.status || 'active') === 'inactive').length : 0}</h4>
             <p>Inactive Buyers</p>
           </div>
         </div>
@@ -2273,7 +2640,7 @@ const BuyerManagement = memo(function BuyerManagement({
             <FaUserTimes />
           </div>
           <div className="summary-content">
-            <h4>{buyers.filter((b) => (b.status || 'active') === 'suspended').length}</h4>
+            <h4>{Array.isArray(buyers) ? buyers.filter((b) => (b.status || 'active') === 'suspended').length : 0}</h4>
             <p>Suspended Buyers</p>
           </div>
         </div>
@@ -2282,7 +2649,7 @@ const BuyerManagement = memo(function BuyerManagement({
             <FaUsers />
           </div>
           <div className="summary-content">
-            <h4>{buyers.length}</h4>
+            <h4>{Array.isArray(buyers) ? buyers.length : 0}</h4>
             <p>Total Buyers</p>
           </div>
         </div>
@@ -2428,7 +2795,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch('http://localhost:5000/api/admin/dashboard', {
+      const response = await fetch('http://127.0.0.1:5000/api/admin/dashboard', {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
       });
@@ -2449,7 +2816,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
   const handleLogout = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      await fetch('http://localhost:5000/api/admin/logout', {
+      await fetch('http://127.0.0.1:5000/api/admin/logout', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -2476,7 +2843,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
       }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch('http://localhost:5000/api/admin/sellers', {
+      const response = await fetch('http://127.0.0.1:5000/api/admin/sellers', {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
         signal: controller.signal,
@@ -2512,7 +2879,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
       }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch('http://localhost:5000/api/admin/users', {
+      const response = await fetch('http://127.0.0.1:5000/api/admin/users', {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
         signal: controller.signal,
@@ -2549,7 +2916,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
       }
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch('http://localhost:5000/api/admin/buyers', {
+      const response = await fetch('http://127.0.0.1:5000/api/admin/buyers', {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
         signal: controller.signal,
@@ -2652,7 +3019,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
   const handleBuyerStatusChange = async (buyerId, newStatus) => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/buyers/${buyerId}/status`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/buyers/${buyerId}/status`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -2676,7 +3043,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
     if (!window.confirm('Are you sure you want to delete this buyer?')) return;
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/buyers/${buyerId}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/buyers/${buyerId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -2766,7 +3133,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
     setBuyerUpdateLoading(true);
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`http://localhost:5000/api/admin/buyers/${selectedBuyer._id}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/admin/buyers/${selectedBuyer._id}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -2840,6 +3207,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
           <BuyerManagement
             buyers={buyers}
             buyersLoading={buyersLoading}
+            showToast={showToast}
             handleSearchInputChange={handleSearchInputChange}
             handleBuyerStatusChange={handleBuyerStatusChange}
             handleDeleteBuyer={handleDeleteBuyer}
@@ -2899,7 +3267,7 @@ const AdminDashboard = ({ admin, onLogout }) => {
               setProfileUpdateLoading(true);
               try {
                 const token = localStorage.getItem('adminToken');
-                const response = await fetch('http://localhost:5000/api/admin/profile', {
+                const response = await fetch('http://127.0.0.1:5000/api/admin/profile', {
                   method: 'PUT',
                   headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
                   credentials: 'include',

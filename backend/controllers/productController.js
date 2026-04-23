@@ -1,9 +1,90 @@
 const Product = require('../models/Product');
+const Seller = require('../models/Seller');
+
+const recalculateReviewStats = (product) => {
+  product.numOfReviews = product.reviews.length;
+  product.rating = product.reviews.length > 0
+    ? product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length
+    : 0;
+};
+
+const normalizeReviewOwners = (product) => {
+  if (!product || !Array.isArray(product.reviews)) return;
+
+  product.reviews.forEach((review) => {
+    if (!review.user && review.userId) {
+      review.user = review.userId;
+    }
+    if (review.user && !review.userId) {
+      review.userId = review.user;
+    }
+  });
+};
+
+const getReviewOwnerId = (review) => {
+  if (!review) return null;
+  if (review.user) return review.user.toString();
+  if (review.userId) return review.userId.toString();
+  return null;
+};
+
+const normalizeCondition = (value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const normalized = String(value).trim().toLowerCase().replace(/\s+/g, '_');
+  const allowed = ['new', 'used', 'like_new'];
+  return allowed.includes(normalized) ? normalized : undefined;
+};
+
+const normalizeAvailability = (value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+
+  const raw = String(value).trim().toLowerCase().replace(/\s+/g, '_');
+  const map = {
+    available: 'in_stock',
+    in_stock: 'in_stock',
+    out_of_stock: 'reserved',
+    sold: 'sold',
+    reserved: 'reserved'
+  };
+
+  return map[raw];
+};
+
+const normalizeTags = (value) => {
+  if (value === undefined || value === null) return undefined;
+
+  const items = Array.isArray(value)
+    ? value
+    : String(value)
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+  return Array.from(
+    new Set(items.map((item) => String(item).trim().toLowerCase()).filter(Boolean))
+  );
+};
+
+const normalizeCoverImage = (images) => {
+  if (!Array.isArray(images) || images.length === 0) return '';
+
+  const firstImage = String(images[0] || '').trim();
+  if (!firstImage) return '';
+
+  // Data URLs are often very large and hurt listing query performance.
+  if (firstImage.startsWith('data:')) return '';
+
+  if (firstImage.length > 2048) return '';
+  return firstImage;
+};
 
 // Create a new product (Seller)
 exports.createProduct = async (req, res) => {
   try {
     const { title, description, price, stock, category, images } = req.body;
+    const condition = normalizeCondition(req.body.condition) || 'new';
+    const availability = normalizeAvailability(req.body.availability) || (Number(stock) > 0 ? 'in_stock' : 'reserved');
+    const tags = normalizeTags(req.body.tags) || [];
 
     // Validations
     if (!title || title.trim() === '') return res.status(400).json({ success: false, message: 'Title is required' });
@@ -18,7 +99,11 @@ exports.createProduct = async (req, res) => {
       price,
       stock,
       category,
-      images: images || []
+      condition,
+      availability,
+      tags,
+      images: images || [],
+      coverImage: normalizeCoverImage(images || [])
     });
 
     await product.save();
@@ -32,8 +117,12 @@ exports.createProduct = async (req, res) => {
 // Get all products (Public/Buyer)
 exports.getAllProducts = async (req, res) => {
   try {
+    console.log("Starting getAllProducts");
     const { keyword, category, page = 1, limit = 12 } = req.query;
     const query = { status: 'active' };
+    const currentPage = Math.max(1, Number(page) || 1);
+    const pageSize = Math.max(1, Number(limit) || 12);
+    const fetchLimit = pageSize + 1;
 
     if (keyword) {
       query.$or = [
@@ -46,26 +135,57 @@ exports.getAllProducts = async (req, res) => {
       query.category = category;
     }
 
-    const skip = (page - 1) * limit;
+    const skip = (currentPage - 1) * pageSize;
 
+    console.time("Product.find");
     const products = await Product.find(query)
-      .select('title price category images seller status description stock')
-      .populate('seller', 'businessName firstName lastName')
+      .select('title price category condition availability tags coverImage seller status stock rating numOfReviews createdAt')
       .sort('-createdAt')
       .skip(skip)
-      .limit(Number(limit))
+      .limit(fetchLimit)
       .lean();
+    console.timeEnd("Product.find");
 
-    const totalProducts = await Product.countDocuments(query);
+    const sellerIds = [...new Set(
+      products
+        .map((product) => product.seller && product.seller.toString ? product.seller.toString() : String(product.seller || ''))
+        .filter(Boolean)
+    )];
 
+    const sellers = sellerIds.length > 0
+      ? await Seller.find({ _id: { $in: sellerIds } })
+          .select('businessName firstName lastName')
+          .lean()
+      : [];
+    const sellerMap = new Map(sellers.map((seller) => [String(seller._id), seller]));
+
+    const productsWithSellers = products.map((product) => {
+      const sellerId = product.seller && product.seller.toString ? product.seller.toString() : String(product.seller || '');
+      return {
+        ...product,
+        coverImage: product.coverImage || '',
+        seller: sellerMap.get(sellerId) || product.seller
+      };
+    });
+
+    const hasMore = productsWithSellers.length > pageSize;
+    const pageItems = hasMore ? productsWithSellers.slice(0, pageSize) : productsWithSellers;
+
+    const includeMeta = String(req.query.includeMeta || '').toLowerCase() === 'true';
+    const totalProducts = includeMeta ? await Product.countDocuments(query) : null;
+
+    console.time("res.json");
     res.status(200).json({ 
       success: true, 
-      data: products, 
-      count: products.length,
+      data: pageItems, 
+      count: pageItems.length,
+      hasMore,
       totalProducts,
-      pagesCount: Math.ceil(totalProducts / limit),
-      currentPage: Number(page)
+      pagesCount: includeMeta ? Math.ceil(totalProducts / pageSize) : null,
+      currentPage
     });
+    console.timeEnd("res.json");
+    console.log("Response fully sent");
   } catch (error) {
     console.error('Get all products error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -77,7 +197,8 @@ exports.getProductById = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
       .populate('seller', 'businessName firstName lastName')
-      .populate('reviews.user', 'firstName lastName');
+      .populate('reviews.userId', 'firstName lastName')
+      .lean();
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
@@ -94,6 +215,7 @@ exports.getProductById = async (req, res) => {
 exports.createProductReview = async (req, res) => {
   try {
     const { rating, comment } = req.body;
+    const numericRating = Number(rating);
 
     // Check if buyer exists in req
     if (!req.buyer || !req.buyer.id) {
@@ -106,29 +228,34 @@ exports.createProductReview = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
+    if (Number.isNaN(numericRating) || numericRating < 1 || numericRating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be a number between 1 and 5' });
+    }
+
+    if (!comment || String(comment).trim() === '') {
+      return res.status(400).json({ success: false, message: 'Comment is required' });
+    }
+
     // Removed alreadyReviewed check to allow multiple item reviews
 
     const review = {
       user: req.buyer.id,
+      userId: req.buyer.id,
       name: req.buyer.fullName || 'Anonymous Buyer',
-      rating: Number(rating),
-      comment
+      rating: numericRating,
+      comment: String(comment).trim()
     };
 
     product.reviews.push(review);
+    normalizeReviewOwners(product);
+    recalculateReviewStats(product);
 
-    product.numOfReviews = product.reviews.length;
-
-    product.rating =
-      product.reviews.reduce((acc, item) => item.rating + acc, 0) /
-      product.reviews.length;
-
-    await product.save({ validateBeforeSave: false });
+    await product.save();
 
     // Repopulate product to return back with new review including user details
     const updatedProduct = await Product.findById(req.params.id)
       .populate('seller', 'businessName firstName lastName')
-      .populate('reviews.user', 'firstName lastName');
+      .populate('reviews.userId', 'firstName lastName');
 
     res.status(201).json({ success: true, message: 'Review added', data: updatedProduct });
   } catch (error) {
@@ -141,6 +268,8 @@ exports.createProductReview = async (req, res) => {
 exports.updateProductReview = async (req, res) => {
   try {
     const { rating, comment } = req.body;
+    const hasRating = rating !== undefined;
+    const hasComment = comment !== undefined;
     
     if (!req.buyer || !req.buyer.id) {
        return res.status(401).json({ success: false, message: 'Not authorized' });
@@ -152,19 +281,37 @@ exports.updateProductReview = async (req, res) => {
     const review = product.reviews.id(req.params.reviewId);
     if (!review) return res.status(404).json({ success: false, message: 'Review not found' });
 
-    if (review.user.toString() !== req.buyer.id.toString()) {
+    const reviewOwnerId = getReviewOwnerId(review);
+    if (!reviewOwnerId || reviewOwnerId !== req.buyer.id.toString()) {
       return res.status(403).json({ success: false, message: 'Not authorized to update this review' });
     }
 
-    if (rating) review.rating = Number(rating);
-    if (comment) review.comment = comment;
+    if (!hasRating && !hasComment) {
+      return res.status(400).json({ success: false, message: 'Provide rating or comment to update the review' });
+    }
 
-    product.rating = product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length;
+    if (hasRating) {
+      const numericRating = Number(rating);
+      if (Number.isNaN(numericRating) || numericRating < 1 || numericRating > 5) {
+        return res.status(400).json({ success: false, message: 'Rating must be a number between 1 and 5' });
+      }
+      review.rating = numericRating;
+    }
+
+    if (hasComment) {
+      if (!comment || String(comment).trim() === '') {
+        return res.status(400).json({ success: false, message: 'Comment is required' });
+      }
+      review.comment = String(comment).trim();
+    }
+
+    normalizeReviewOwners(product);
+    recalculateReviewStats(product);
     await product.save();
 
     const updatedProduct = await Product.findById(req.params.id)
        .populate('seller', 'businessName firstName lastName')
-       .populate('reviews.user', 'firstName lastName');
+       .populate('reviews.userId', 'firstName lastName');
 
     res.status(200).json({ success: true, message: 'Review updated', data: updatedProduct });
   } catch (error) {
@@ -186,23 +333,22 @@ exports.deleteProductReview = async (req, res) => {
     const review = product.reviews.id(req.params.reviewId);
     if (!review) return res.status(404).json({ success: false, message: 'Review not found' });
 
-    if (review.user.toString() !== req.buyer.id.toString()) {
+    const reviewOwnerId = getReviewOwnerId(review);
+    if (!reviewOwnerId || reviewOwnerId !== req.buyer.id.toString()) {
       return res.status(403).json({ success: false, message: 'Not authorized to delete this review' });
     }
 
     // Using mongoose remove/deleteOne for subdocument
     review.deleteOne();
 
-    product.numOfReviews = product.reviews.length;
-    product.rating = product.reviews.length > 0 
-      ? product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length 
-      : 0;
+    normalizeReviewOwners(product);
+    recalculateReviewStats(product);
 
     await product.save();
 
     const updatedProduct = await Product.findById(req.params.id)
        .populate('seller', 'businessName firstName lastName')
-       .populate('reviews.user', 'firstName lastName');
+       .populate('reviews.userId', 'firstName lastName');
 
     res.status(200).json({ success: true, message: 'Review deleted', data: updatedProduct });
   } catch (error) {
@@ -214,7 +360,10 @@ exports.deleteProductReview = async (req, res) => {
 // Get products for logged-in seller
 exports.getSellerProducts = async (req, res) => {
   try {
-    const products = await Product.find({ seller: req.seller.id }).sort('-createdAt');
+    const products = await Product.find({ seller: req.seller.id })
+      .select('title price category condition availability images stock rating numOfReviews status createdAt')
+      .sort('-createdAt')
+      .lean();
     res.status(200).json({ success: true, data: products, count: products.length });
   } catch (error) {
     console.error('Get seller products error:', error);
@@ -236,6 +385,31 @@ exports.updateProduct = async (req, res) => {
     // }
 
     const { title, description, price, stock } = req.body;
+    const updatePayload = { ...req.body };
+
+    if (req.body.condition !== undefined) {
+      const condition = normalizeCondition(req.body.condition);
+      if (!condition) {
+        return res.status(400).json({ success: false, message: 'Condition must be one of: new, used, like_new' });
+      }
+      updatePayload.condition = condition;
+    }
+
+    if (req.body.availability !== undefined) {
+      const availability = normalizeAvailability(req.body.availability);
+      if (!availability) {
+        return res.status(400).json({ success: false, message: 'Availability must be one of: in_stock, sold, reserved' });
+      }
+      updatePayload.availability = availability;
+    }
+
+    if (req.body.tags !== undefined) {
+      updatePayload.tags = normalizeTags(req.body.tags) || [];
+    }
+
+    if (req.body.images !== undefined) {
+      updatePayload.coverImage = normalizeCoverImage(req.body.images || []);
+    }
 
     // Validations
     if (title !== undefined && title.trim() === '') return res.status(400).json({ success: false, message: 'Title cannot be empty' });
@@ -243,7 +417,7 @@ exports.updateProduct = async (req, res) => {
     if (price !== undefined && (isNaN(price) || price <= 0)) return res.status(400).json({ success: false, message: 'Valid price strictly greater than 0 is required' });
     if (stock !== undefined && (isNaN(stock) || stock < 0)) return res.status(400).json({ success: false, message: 'Valid stock number (0 or greater) is required' });
 
-    product = await Product.findByIdAndUpdate(req.params.id, req.body, {
+    product = await Product.findByIdAndUpdate(req.params.id, updatePayload, {
       new: true,
       runValidators: true
     });
@@ -270,5 +444,43 @@ exports.deleteProduct = async (req, res) => {
   } catch (error) {
     console.error('Delete product error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Stream product thumbnail image
+exports.getProductThumbnail = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id).select('images').slice('images', 1).lean();
+
+    if (!product || !product.images || product.images.length === 0) {
+      return res.status(404).send('Not found');
+    }
+
+    const base64Str = product.images[0];
+    let imgBuffer;
+    let contentType = 'image/jpeg';
+    
+    if (base64Str.startsWith('data:image/')) {
+        const parts = base64Str.split(',');
+        if (parts.length === 2) {
+            const header = parts[0];
+            const mimeMatch = header.match(/data:(image\/[a-zA-Z0-9+]+);base64/);
+            if (mimeMatch) contentType = mimeMatch[1];
+            imgBuffer = Buffer.from(parts[1], 'base64');
+        } else {
+            return res.status(404).send('Invalid image data');
+        }
+    } else if (base64Str.startsWith('http')) {
+        return res.redirect(301, base64Str);
+    } else {
+        imgBuffer = Buffer.from(base64Str, 'base64');
+    }
+
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=864000'); // Cache for 10 days!
+    return res.send(imgBuffer);
+  } catch (error) {
+    console.error('Get product thumbnail error:', error);
+    res.status(500).send('Server Error');
   }
 };

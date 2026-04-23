@@ -1,16 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { FaEdit, FaTrash, FaPlus, FaFilePdf } from 'react-icons/fa';
+import React, { useMemo, useState, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { FaEdit, FaTrash, FaPlus, FaFilePdf } from 'react-icons/fa';
 
 const SellerProducts = ({ seller }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [formData, setFormData] = useState({
-    title: '', description: '', price: '', stock: '', category: 'Electronics', image: ''
+    title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: ''
   });
+
+  const authHeaders = useMemo(() => {
+    const token = localStorage.getItem('sellerToken');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
 
   useEffect(() => {
     fetchProducts();
@@ -18,9 +24,9 @@ const SellerProducts = ({ seller }) => {
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/products/seller', {
+      const response = await fetch('http://127.0.0.1:5000/api/products/seller', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
+          ...authHeaders
         }
       });
       const data = await response.json();
@@ -31,6 +37,162 @@ const SellerProducts = ({ seller }) => {
       console.error('Error fetching products:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOrdersForReport = async () => {
+    const response = await fetch('http://localhost:5000/api/orders/seller', {
+      headers: {
+        ...authHeaders
+      }
+    });
+    const data = await response.json();
+    if (!response.ok || !data?.success) {
+      throw new Error(data?.message || 'Failed to fetch orders');
+    }
+    return data.data || [];
+  };
+
+  const generatePdfReport = async () => {
+    if (!localStorage.getItem('sellerToken')) {
+      alert('Seller session missing. Please login again.');
+      return;
+    }
+
+    try {
+      setGeneratingPdf(true);
+
+      // Ensure we have the latest product list for the report.
+      let reportProducts = products;
+      if (!reportProducts || reportProducts.length === 0) {
+        const response = await fetch('http://localhost:5000/api/products/seller', {
+          headers: { ...authHeaders }
+        });
+        const data = await response.json();
+        if (response.ok && data?.success) {
+          reportProducts = data.data || [];
+        }
+      }
+
+      const reportOrders = await fetchOrdersForReport();
+
+      const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      const now = new Date();
+      const sellerName = seller?.businessName || seller?.fullName || seller?.firstName || 'Seller';
+      const title = 'Seller Report (Products & Orders)';
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text(title, 40, 50);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Generated for: ${sellerName}`, 40, 70);
+      doc.text(`Generated at: ${now.toLocaleString()}`, 40, 85);
+      doc.text(`Total Products: ${reportProducts.length}`, 40, 100);
+      doc.text(`Total Orders: ${reportOrders.length}`, 40, 115);
+
+      // PRODUCTS TABLE
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('Products', 40, 145);
+
+      autoTable(doc, {
+        startY: 155,
+        head: [[
+          'ID',
+          'Title',
+          'Description',
+          'Category',
+          'Price (Rs)',
+          'Stock',
+          'Status',
+          'Rating',
+          'Reviews',
+          'Created'
+        ]],
+        body: (reportProducts || []).map((p) => [
+          String(p?._id || '').slice(0, 8),
+          p?.title || '',
+          p?.description || '',
+          p?.category || '',
+          p?.price ?? '',
+          p?.stock ?? '',
+          p?.status || '',
+          typeof p?.rating === 'number' ? p.rating.toFixed(1) : (p?.rating ?? ''),
+          p?.numOfReviews ?? '',
+          p?.createdAt ? new Date(p.createdAt).toLocaleDateString() : ''
+        ]),
+        styles: { fontSize: 7, cellPadding: 4, overflow: 'linebreak' },
+        headStyles: { fillColor: [22, 163, 74] },
+        margin: { left: 40, right: 40 }
+      });
+
+      // ORDER TABLE
+      const nextY = (doc.lastAutoTable?.finalY || 155) + 30;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('Orders', 40, nextY);
+
+      autoTable(doc, {
+        startY: nextY + 10,
+        head: [[
+          'Order ID',
+          'Buyer',
+          'Items',
+          'Total (Rs)',
+          'Status',
+          'Payment',
+          'Method',
+          'Created'
+        ]],
+        body: (reportOrders || []).map((o) => {
+          const buyerName = [o?.buyer?.firstName, o?.buyer?.lastName].filter(Boolean).join(' ') || (o?.buyer?.email || '');
+          const itemsText = (o?.orderItems || [])
+            .map((it) => `${it?.title || 'Item'} x${it?.quantity ?? ''} (Rs ${it?.price ?? ''})`)
+            .join('\n');
+
+          return [
+            String(o?._id || '').slice(0, 8),
+            buyerName,
+            itemsText,
+            o?.totalAmount ?? '',
+            o?.orderStatus || '',
+            o?.paymentStatus || '',
+            o?.deliveryMethod || '',
+            o?.createdAt ? new Date(o.createdAt).toLocaleDateString() : ''
+          ];
+        }),
+        styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
+        headStyles: { fillColor: [22, 163, 74] },
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 80 },
+          2: { cellWidth: 170 },
+          3: { cellWidth: 55 },
+          4: { cellWidth: 52 },
+          5: { cellWidth: 52 },
+          6: { cellWidth: 52 },
+          7: { cellWidth: 55 }
+        },
+        margin: { left: 40, right: 40 },
+        didDrawPage: (data) => {
+          // Simple footer with page number
+          const pageCount = doc.getNumberOfPages();
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.text(`Page ${pageCount}`, pageWidth - 80, doc.internal.pageSize.getHeight() - 20);
+        }
+      });
+
+      doc.save(`unimart-seller-report-${now.toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+      console.error('PDF generation error:', e);
+      alert(e?.message || 'Failed to generate PDF report');
+    } finally {
+      setGeneratingPdf(false);
     }
   };
 
@@ -66,6 +228,9 @@ const SellerProducts = ({ seller }) => {
       price: product.price,
       stock: product.stock,
       category: product.category,
+      condition: product.condition || 'new',
+      availability: product.availability || 'in_stock',
+      tags: Array.isArray(product.tags) ? product.tags.join(', ') : '',
       image: product.images && product.images.length > 0 ? product.images[0] : ''
     });
     setEditingId(product._id);
@@ -76,8 +241,8 @@ const SellerProducts = ({ seller }) => {
     e.preventDefault();
     try {
       const url = editingId
-        ? `http://localhost:5000/api/products/seller/${editingId}`
-        : 'http://localhost:5000/api/products/seller';
+        ? `http://127.0.0.1:5000/api/products/seller/${editingId}`
+        : 'http://127.0.0.1:5000/api/products/seller';
       const method = editingId ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -88,6 +253,7 @@ const SellerProducts = ({ seller }) => {
         },
         body: JSON.stringify({
           ...formData,
+          tags: formData.tags,
           images: [formData.image]
         })
       });
@@ -100,7 +266,7 @@ const SellerProducts = ({ seller }) => {
         }
         setShowForm(false);
         setEditingId(null);
-        setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' });
+        setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' });
       } else {
         alert(data.message || `Error ${editingId ? 'updating' : 'adding'} product`);
       }
@@ -112,7 +278,7 @@ const SellerProducts = ({ seller }) => {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/products/seller/${id}`, {
+      const response = await fetch(`http://127.0.0.1:5000/api/products/seller/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sellerToken')}`
@@ -277,33 +443,20 @@ const SellerProducts = ({ seller }) => {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-6">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Manage Products</h2>
-          <p className="text-sm text-gray-500">Export your seller catalog and stock summary as a PDF report.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleGeneratePDF}
-            disabled={products.length === 0}
-            className="bg-red-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Generate PDF Report"
-          >
-            <FaFilePdf /> Generate PDF
-          </button>
-          <button
-            onClick={() => {
-              setShowForm(!showForm);
-              if (showForm) {
-                setEditingId(null);
-                setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' });
-              }
-            }}
-            className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700"
-          >
-            <FaPlus /> {editingId && showForm ? 'Cancel Edit' : 'Add Product'}
-          </button>
-        </div>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-bold text-gray-900">Manage Products</h2>
+        <button
+          onClick={() => {
+            setShowForm(!showForm);
+            if (showForm) {
+              setEditingId(null);
+              setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' });
+            }
+          }}
+          className="bg-green-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-green-700"
+        >
+          <FaPlus /> {editingId && showForm ? 'Cancel Edit' : 'Add Product'}
+        </button>
       </div>
 
       {showForm && (
@@ -318,6 +471,24 @@ const SellerProducts = ({ seller }) => {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+            <select name="condition" value={formData.condition} onChange={handleInputChange} className="border p-2 rounded">
+              <option value="new">New</option>
+              <option value="used">Used</option>
+              <option value="like_new">Like New</option>
+            </select>
+            <select name="availability" value={formData.availability} onChange={handleInputChange} className="border p-2 rounded">
+              <option value="in_stock">In Stock</option>
+              <option value="sold">Sold</option>
+              <option value="reserved">Reserved</option>
+            </select>
+            <input
+              type="text"
+              name="tags"
+              placeholder="Tags (comma separated)"
+              value={formData.tags}
+              onChange={handleInputChange}
+              className="border p-2 rounded"
+            />
             <div className="col-span-1 md:col-span-2 border p-3 rounded bg-white">
               <label className="block text-sm font-medium text-gray-700 mb-2">Upload Product Image</label>
               <input type="file" accept="image/*" onChange={handleImageChange} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100" />
@@ -332,7 +503,7 @@ const SellerProducts = ({ seller }) => {
           </div>
           <div className="mt-4 flex gap-2">
             <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingId ? 'Update Product' : 'Save Product'}</button>
-            <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', image: '' }); }} className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500">Cancel</button>
+            <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ title: '', description: '', price: '', stock: '', category: 'Electronics', condition: 'new', availability: 'in_stock', tags: '', image: '' }); }} className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500">Cancel</button>
           </div>
         </form>
       )}
@@ -344,6 +515,9 @@ const SellerProducts = ({ seller }) => {
               <th className="py-3 px-4 text-left">Product</th>
               <th className="py-3 px-4 text-left">Description</th>
               <th className="py-3 px-4 text-left">Category</th>
+              <th className="py-3 px-4 text-left">Condition</th>
+              <th className="py-3 px-4 text-left">Availability</th>
+              <th className="py-3 px-4 text-left">Tags</th>
               <th className="py-3 px-4 text-left">Price</th>
               <th className="py-3 px-4 text-left">Stock</th>
               <th className="py-3 px-4 text-left">Status</th>
@@ -354,13 +528,18 @@ const SellerProducts = ({ seller }) => {
             {products.map(product => (
               <tr key={product._id} className="hover:bg-gray-50">
                 <td className="py-3 px-4 flex items-center gap-3">
-                  <img src={product.images[0] || 'https://via.placeholder.com/50'} alt={product.title} className="w-10 h-10 object-cover rounded" />
+                  <img src={product.images[0] || 'https://placehold.co/50x50'} alt={product.title} className="w-10 h-10 object-cover rounded" />
                   <span className="font-medium text-gray-900">{product.title}</span>
                 </td>
                 <td className="py-3 px-4 max-w-[150px] truncate text-gray-500" title={product.description}>
                   {product.description}
                 </td>
                 <td className="py-3 px-4">{product.category}</td>
+                <td className="py-3 px-4">{String(product.condition || 'new').replace('_', ' ')}</td>
+                <td className="py-3 px-4">{String(product.availability || 'in_stock').replace('_', ' ')}</td>
+                <td className="py-3 px-4 max-w-[180px] truncate" title={Array.isArray(product.tags) ? product.tags.join(', ') : ''}>
+                  {Array.isArray(product.tags) && product.tags.length > 0 ? product.tags.join(', ') : '-'}
+                </td>
                 <td className="py-3 px-4">Rs {product.price}</td>
                 <td className="py-3 px-4">{product.stock}</td>
                 <td className="py-3 px-4">
@@ -380,7 +559,7 @@ const SellerProducts = ({ seller }) => {
             ))}
             {products.length === 0 && (
               <tr>
-                <td colSpan="7" className="text-center py-8 text-gray-500">No products found. Add your first product!</td>
+                <td colSpan="10" className="text-center py-8 text-gray-500">No products found. Add your first product!</td>
               </tr>
             )}
           </tbody>

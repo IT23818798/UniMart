@@ -1,9 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import './SellerDashboard.css';
-import SellerProducts from './SellerProducts';
-import SellerOrders from './SellerOrders';
-import SellerReviews from './SellerReviews';
-import ChatPage from './ChatPage';
 import {
   FaUser,
   FaChartLine,
@@ -27,6 +23,17 @@ import {
   FaEnvelope
 } from 'react-icons/fa';
 
+const SellerProducts = lazy(() => import('./SellerProducts'));
+const SellerOrders = lazy(() => import('./SellerOrders'));
+const SellerReviews = lazy(() => import('./SellerReviews'));
+const ChatPage = lazy(() => import('./ChatPage'));
+
+const SectionFallback = () => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center text-gray-500">
+    Loading section...
+  </div>
+);
+
 const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
   const [seller, setSeller] = useState(initialSeller);
   const [dashboardStats, setDashboardStats] = useState(null);
@@ -47,9 +54,14 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
     try {
       setLoading(true);
       
+      const getAuthOptions = () => ({
+        credentials: 'include',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('sellerToken')}` }
+      });
+
       const [profileResponse, statsResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/seller/profile', { credentials: 'include' }),
-        fetch('http://localhost:5000/api/seller/dashboard/stats', { credentials: 'include' })
+        fetch('http://127.0.0.1:5000/api/seller/profile', getAuthOptions()),
+        fetch('http://127.0.0.1:5000/api/seller/dashboard/stats', getAuthOptions())
       ]);
 
       if (!profileResponse.ok || !statsResponse.ok) {
@@ -79,7 +91,10 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/seller/dashboard/stats', { credentials: 'include' });
+      const response = await fetch('http://127.0.0.1:5000/api/seller/dashboard/stats', { 
+        credentials: 'include',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('sellerToken')}` }
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -96,9 +111,10 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:5000/api/seller/logout', {
+      await fetch('http://127.0.0.1:5000/api/seller/logout', {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('sellerToken')}` }
       });
     } catch (error) {
       console.error('Logout error:', error);
@@ -416,17 +432,19 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
             </div>
           )}
 
-          {activeTab === 'products' && (
-            <SellerProducts seller={seller} />
-          )}
+          <Suspense fallback={<SectionFallback />}>
+            {activeTab === 'products' && (
+              <SellerProducts seller={seller} />
+            )}
 
-          {activeTab === 'orders' && (
-            <SellerOrders seller={seller} />
-          )}
+            {activeTab === 'orders' && (
+              <SellerOrders seller={seller} />
+            )}
 
-          {activeTab === 'reviews' && (
-            <SellerReviews seller={seller} />
-          )}
+            {activeTab === 'reviews' && (
+              <SellerReviews seller={seller} />
+            )}
+          </Suspense>
 
           {activeTab === 'profile' && seller && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

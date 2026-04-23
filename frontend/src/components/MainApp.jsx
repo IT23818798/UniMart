@@ -1,8 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import HomePage from './HomePage';
-import AdminDashboard from './AdminDashboard';
-import SellerDashboard from './SellerDashboard';
-import BuyerDashboard from './BuyerDashboard';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
+
+const HomePage = lazy(() => import('./HomePage'));
+const AdminDashboard = lazy(() => import('./AdminDashboard'));
+const SellerDashboard = lazy(() => import('./SellerDashboard'));
+const BuyerDashboard = lazy(() => import('./BuyerDashboard'));
+
+const RouteFallback = () => (
+  <div style={{
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    background: '#f8fafc',
+    fontFamily: 'Inter, system-ui, sans-serif'
+  }}>
+    <div style={{ textAlign: 'center' }}>
+      <div style={{
+        width: '40px',
+        height: '40px',
+        border: '3px solid #e2e8f0',
+        borderTop: '3px solid #16a34a',
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite',
+        margin: '0 auto 1rem'
+      }} />
+      <p style={{ color: '#64748b' }}>Loading...</p>
+    </div>
+  </div>
+);
 
 const MainApp = () => {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -57,6 +82,30 @@ const MainApp = () => {
         const adminData = JSON.parse(storedData);
         setUser(adminData);
         setUserType('admin');
+        setLoading(false);
+
+        if (token) {
+          void (async () => {
+            try {
+              const response = await fetch('http://localhost:5000/api/admin/profile', {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                credentials: 'include'
+              });
+
+              if (response.ok) {
+                const data = await response.json();
+                setUser(data.data.admin);
+                setUserType('admin');
+              }
+            } catch (backgroundError) {
+              console.error('Admin background auth check failed:', backgroundError);
+            }
+          })();
+        }
+        return;
       }
 
       if (storedData && !token) {
@@ -64,7 +113,7 @@ const MainApp = () => {
       }
 
       if (token) {
-        const response = await fetch('http://localhost:5000/api/admin/profile', {
+        const response = await fetch('http://127.0.0.1:5000/api/admin/profile', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -109,6 +158,30 @@ const MainApp = () => {
         const sellerData = JSON.parse(storedData);
         setUser(sellerData);
         setUserType('seller');
+        setLoading(false);
+
+        if (token) {
+          void (async () => {
+            try {
+              const response = await fetch('http://localhost:5000/api/seller/profile', {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                credentials: 'include'
+              });
+
+              if (response.ok) {
+                const data = await response.json();
+                setUser(data.data.seller);
+                setUserType('seller');
+              }
+            } catch (backgroundError) {
+              console.error('Seller background auth check failed:', backgroundError);
+            }
+          })();
+        }
+        return;
       }
 
       if (storedData && !token) {
@@ -116,7 +189,7 @@ const MainApp = () => {
       }
 
       if (token) {
-        const response = await fetch('http://localhost:5000/api/seller/profile', {
+        const response = await fetch('http://127.0.0.1:5000/api/seller/profile', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -166,18 +239,50 @@ const MainApp = () => {
         console.log('Setting buyer from stored data:', buyerData.firstName);
         setUser(buyerData);
         setUserType('buyer');
+        setLoading(false);
+
+        if (token) {
+          void (async () => {
+            try {
+              const response = await fetch('http://localhost:5000/api/buyer/profile', {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                credentials: 'include'
+              });
+
+              if (response.ok) {
+                const data = await response.json();
+                setUser(data.data.buyer);
+                setUserType('buyer');
+              } else {
+                // Stale/invalid token should not keep user on protected route.
+                clearAuth('buyer');
+                redirectToHome();
+              }
+            } catch (backgroundError) {
+              console.error('Buyer background auth check failed:', backgroundError);
+              clearAuth('buyer');
+              redirectToHome();
+            }
+          })();
+        }
+        return;
       }
 
-      // If we have stored data but no token, that's fine - user is authenticated
+      // Buyer dashboard is protected; stored data alone is not enough.
       if (storedData && !token) {
-        console.log('User authenticated with stored data only');
+        console.log('Stored buyer data found without token, redirecting to login');
+        clearAuth('buyer');
+        redirectToHome();
         return;
       }
 
       // If we have a token, verify it with the API
       if (token) {
         console.log('Verifying buyer token with API');
-        const response = await fetch('http://localhost:5000/api/buyer/profile', {
+        const response = await fetch('http://127.0.0.1:5000/api/buyer/profile', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -236,35 +341,17 @@ const MainApp = () => {
   };
 
   if (loading) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        background: '#f8fafc',
-        fontFamily: 'Inter, system-ui, sans-serif'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            border: '3px solid #e2e8f0',
-            borderTop: '3px solid #16a34a',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto 1rem'
-          }}></div>
-          <p style={{ color: '#64748b' }}>Loading...</p>
-        </div>
-      </div>
-    );
+    return <RouteFallback />;
   }
 
   // Route based on current path
   if (currentPath === '/admin-dashboard') {
     if (user && userType === 'admin') {
-      return <AdminDashboard admin={user} onLogout={() => handleLogout('admin')} />;
+      return (
+        <Suspense fallback={<RouteFallback />}>
+          <AdminDashboard admin={user} onLogout={() => handleLogout('admin')} />
+        </Suspense>
+      );
     } else {
       return (
         <div style={{
@@ -283,7 +370,11 @@ const MainApp = () => {
 
   if (currentPath === '/seller-dashboard') {
     if (user && userType === 'seller') {
-      return <SellerDashboard seller={user} onLogout={() => handleLogout('seller')} />;
+      return (
+        <Suspense fallback={<RouteFallback />}>
+          <SellerDashboard seller={user} onLogout={() => handleLogout('seller')} />
+        </Suspense>
+      );
     } else {
       return (
         <div style={{
@@ -302,7 +393,11 @@ const MainApp = () => {
 
   if (currentPath === '/buyer-dashboard') {
     if (user && userType === 'buyer') {
-      return <BuyerDashboard buyer={user} onLogout={() => handleLogout('buyer')} />;
+      return (
+        <Suspense fallback={<RouteFallback />}>
+          <BuyerDashboard buyer={user} onLogout={() => handleLogout('buyer')} />
+        </Suspense>
+      );
     } else {
       return (
         <div style={{
@@ -320,7 +415,11 @@ const MainApp = () => {
   }
 
   // Default to HomePage
-  return <HomePage />;
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <HomePage />
+    </Suspense>
+  );
 };
 
 export default MainApp;

@@ -330,7 +330,9 @@ const getDashboardStats = async (req, res) => {
     const sellerId = req.seller.id;
 
     // Get seller info
-    const seller = await Seller.findById(sellerId);
+    const seller = await Seller.findById(sellerId)
+      .select('businessName createdAt lastLogin verificationStatus isVerified isActive subscription ratings totalProducts totalSales')
+      .lean();
     
     if (!seller) {
       return res.status(404).json({
@@ -339,12 +341,28 @@ const getDashboardStats = async (req, res) => {
       });
     }
 
+    const calculateSellerScore = (currentSeller) => {
+      let score = 0;
+
+      if (currentSeller.isActive) score += 20;
+      if (currentSeller.isVerified) score += 30;
+      score += ((currentSeller.ratings?.average || 0) / 5) * 25;
+
+      if ((currentSeller.totalSales || 0) > 0) {
+        score += Math.min(15, Math.log10(currentSeller.totalSales) * 3);
+      }
+
+      score += Math.min(10, (currentSeller.totalProducts || 0) * 0.5);
+
+      return Math.round(Math.min(100, score));
+    };
+
     // Mock dashboard statistics (replace with actual queries)
     const dashboardStats = {
       sellerInfo: {
         id: seller._id,
         businessName: seller.businessName,
-        sellerScore: seller.calculateSellerScore(),
+        sellerScore: calculateSellerScore(seller),
         verificationStatus: seller.verificationStatus,
         isVerified: seller.isVerified,
         memberSince: seller.createdAt,
@@ -353,10 +371,10 @@ const getDashboardStats = async (req, res) => {
       businessMetrics: {
         totalProducts: seller.totalProducts || 0,
         totalSales: seller.totalSales || 0,
-        averageRating: seller.ratings.average || 0,
-        totalReviews: seller.ratings.totalReviews || 0,
-        subscriptionPlan: seller.subscription.plan || 'free',
-        subscriptionStatus: seller.subscription.isActive ? 'active' : 'inactive'
+        averageRating: seller.ratings?.average || 0,
+        totalReviews: seller.ratings?.totalReviews || 0,
+        subscriptionPlan: seller.subscription?.plan || 'free',
+        subscriptionStatus: seller.subscription?.isActive ? 'active' : 'inactive'
       },
       salesData: {
         totalRevenue: 0, // Calculate from actual orders

@@ -2,10 +2,10 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
-    // MongoDB connection options
     const options = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+      family: 4, // Force IPv4 to prevent 2-minute IPv6 timeout hangs
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
     };
 
     // Connect to MongoDB

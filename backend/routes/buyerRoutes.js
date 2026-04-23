@@ -11,6 +11,10 @@ const {
   addToWishlist,
   removeFromWishlist,
   addDeliveryAddress,
+  getDeliveryAddresses,
+  updateDeliveryAddress,
+  deleteDeliveryAddress,
+  getBuyerReviews,
   getAllBuyers,
   deleteBuyer
 } = require('../controllers/buyerController');
@@ -52,33 +56,10 @@ router.get('/wishlist', (req, res) => {
 });
 
 // Address management
-router.post('/addresses', addDeliveryAddress);
-router.get('/addresses', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Delivery addresses endpoint',
-    data: {
-      addresses: []
-    }
-  });
-});
-
-router.put('/addresses/:addressId', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Update delivery address endpoint',
-    data: {
-      address: req.body
-    }
-  });
-});
-
-router.delete('/addresses/:addressId', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Delete delivery address endpoint'
-  });
-});
+router.post('/addresses', authenticateBuyer, addDeliveryAddress);
+router.get('/addresses', authenticateBuyer, getDeliveryAddresses);
+router.put('/addresses/:addressId', authenticateBuyer, updateDeliveryAddress);
+router.delete('/addresses/:addressId', authenticateBuyer, deleteDeliveryAddress);
 
 // Order history and tracking
 router.get('/orders', (req, res) => {
@@ -124,15 +105,7 @@ router.post('/reviews', (req, res) => {
   });
 });
 
-router.get('/reviews', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Get buyer reviews endpoint',
-    data: {
-      reviews: []
-    }
-  });
-});
+router.get('/reviews', authenticateBuyer, getBuyerReviews);
 
 // Notifications
 router.get('/notifications', (req, res) => {

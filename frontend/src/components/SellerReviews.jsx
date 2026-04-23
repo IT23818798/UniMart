@@ -3,16 +3,35 @@ import { FaStar, FaBox, FaUserCircle } from 'react-icons/fa';
 
 const SellerReviews = ({ seller }) => {
   const [productReviews, setProductReviews] = useState([]);
+  const [liveSellerReviews, setLiveSellerReviews] = useState(seller?.reviews || []);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchProductReviews();
-  }, []);
+    fetchLatestSellerReviews();
+  }, [seller]);
+
+  const fetchLatestSellerReviews = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/seller/profile', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('sellerToken') || ''}` 
+        },
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (data.success && data.data && data.data.seller && data.data.seller.reviews) {
+        setLiveSellerReviews(data.data.seller.reviews);
+      }
+    } catch (error) {
+      console.error('Error fetching latest seller reviews:', error);
+    }
+  };
 
   const fetchProductReviews = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/products/seller', {
+      const response = await fetch('http://127.0.0.1:5000/api/products/seller', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sellerToken') || ''}` 
         },
@@ -46,8 +65,7 @@ const SellerReviews = ({ seller }) => {
       setLoading(false);
     }
   };
-
-  const sellerReviewsList = seller?.reviews ? [...seller.reviews].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
+  const sellerReviewsList = [...liveSellerReviews].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const renderStars = (rating) => {
     return (

@@ -20,19 +20,12 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
         const url = new URL('http://localhost:5000/api/products');
         url.searchParams.append('page', pageNumber);
         url.searchParams.append('limit', pageSize);
-      const pageSize = 50; // Increased to 50 so filters have enough items to work with without taking 2 minutes
-      const currentPage = 1;
+        const response = await fetch(url.toString());
+        const data = await response.json();
 
-      const url = new URL('http://127.0.0.1:5000/api/products');
-      url.searchParams.append('page', currentPage);
-      url.searchParams.append('limit', pageSize);
-
-      const response = await fetch(url.toString());
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to fetch products');
-      }
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'Failed to fetch products');
+        }
 
         return {
           products: data.data || [],
@@ -43,13 +36,6 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
       const firstPage = await loadPage(1);
       const firstPageProducts = firstPage.products;
       setProducts(firstPageProducts);
-      setProducts(data.data || []);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      setError(error.message || 'Failed to load products');
-      setProducts([]);
-    } finally {
-      setLoading(false);
 
       if (firstPage.hasMore) {
         setLoadingMore(true);
@@ -64,13 +50,12 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
           hasMore = nextPage.hasMore;
           currentPage += 1;
         }
-
-        setLoadingMore(false);
       }
-    } catch (fetchError) {
-      console.error('Error fetching products:', fetchError);
-      setError(fetchError.message || 'Failed to load products');
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setError(error.message || 'Failed to load products');
       setProducts([]);
+    } finally {
       setLoading(false);
       setLoadingMore(false);
     }
@@ -136,7 +121,6 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
                 <div key={product._id} className="product-card-modern cursor-pointer hover:shadow-lg transition-all hover:-translate-y-1" onClick={() => onProductClick && onProductClick(product)}>
                   <div className="relative overflow-hidden rounded-t-xl h-48 bg-gray-50">
                     <img
-                      src={product.coverImage || 'https://placehold.co/300x200?text=No+Image'}
                       src={`http://127.0.0.1:5000/api/products/${product._id}/thumbnail`}
                       alt={product.title}
                       className="w-full h-full object-cover transition-transform hover:scale-110 duration-500"

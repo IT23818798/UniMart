@@ -848,7 +848,6 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
             onClose={() => setIsChatOpen(false)}
           />
         )}
-      </Suspense>
     </div>
   );
 };

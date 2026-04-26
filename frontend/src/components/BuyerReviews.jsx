@@ -10,7 +10,7 @@ const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [editingReviewId, setEditingReviewId] = useState(null);
-  const [editRating, setEditRating] = useState(5);
+  const [editRating, setEditRating] = useState(0);
   const [editComment, setEditComment] = useState('');
   const [savingReviewId, setSavingReviewId] = useState(null);
   const [deletingReviewId, setDeletingReviewId] = useState(null);
@@ -109,13 +109,13 @@ const BuyerReviews = ({ onViewProduct, onBrowseProducts }) => {
 
   const startEdit = (review) => {
     setEditingReviewId(review.reviewId);
-    setEditRating(Number(review.rating) || 5);
+    setEditRating(Number(review.rating) || 0);
     setEditComment(review.comment || '');
   };
 
   const cancelEdit = () => {
     setEditingReviewId(null);
-    setEditRating(5);
+    setEditRating(0);
     setEditComment('');
   };
 

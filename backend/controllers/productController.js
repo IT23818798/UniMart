@@ -361,7 +361,7 @@ exports.deleteProductReview = async (req, res) => {
 exports.getSellerProducts = async (req, res) => {
   try {
     const products = await Product.find({ seller: req.seller.id })
-      .select('title price category condition availability images stock rating numOfReviews status createdAt')
+      .select('title price category condition availability images stock rating numOfReviews reviews status createdAt')
       .sort('-createdAt')
       .lean();
     res.status(200).json({ success: true, data: products, count: products.length });

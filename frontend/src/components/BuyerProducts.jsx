@@ -124,7 +124,7 @@ const BuyerProducts = ({ buyer, onAddToCart, onProductClick }) => {
                 <div key={product._id} className="product-card-modern cursor-pointer hover:shadow-lg transition-all hover:-translate-y-1" onClick={() => onProductClick && onProductClick(product)}>
                   <div className="relative overflow-hidden rounded-t-xl h-48 bg-gray-50">
                     <img
-                      src={`http://127.0.0.1:5000/api/products/${product._id}/thumbnail`}
+                      src={product.images?.[0] || product.coverImage || `http://127.0.0.1:5000/api/products/${product._id}/thumbnail`}
                       alt={product.title}
                       className="w-full h-full object-cover transition-transform hover:scale-110 duration-500"
                       onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/300x200?text=No+Image'; }}

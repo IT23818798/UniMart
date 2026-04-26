@@ -4,7 +4,7 @@ import { useDataCache } from '../hooks/useDataCache';
 
 const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller }) => {
   const [product, setProduct] = useState(null);
-  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState('');
@@ -124,7 +124,7 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
       if (data.success) {
         setProduct(data.data); // Update product to show new review
         setReviewComment('');
-        setReviewRating(5);
+        setReviewRating(0);
         setEditingReviewId(null);
       } else {
         setReviewError(data.message || 'Failed to submit review');
@@ -156,7 +156,7 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
         if (editingReviewId === reviewId) {
           setEditingReviewId(null);
           setReviewComment('');
-          setReviewRating(5);
+          setReviewRating(0);
         }
       } else {
         setReviewError(data.message || 'Failed to delete review');
@@ -331,7 +331,7 @@ const ProductDetail = ({ productId, buyer, onBack, onAddToCart, onChatWithSeller
                     onClick={() => {
                       setEditingReviewId(null);
                       setReviewComment('');
-                      setReviewRating(5);
+                      setReviewRating(0);
                     }}
                     className="mt-3 w-full py-2.5 px-4 rounded-lg bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition-colors"
                   >

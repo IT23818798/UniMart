@@ -139,7 +139,7 @@ exports.getAllProducts = async (req, res) => {
 
     console.time("Product.find");
     const products = await Product.find(query)
-      .select('title price category condition availability tags coverImage seller status stock rating numOfReviews createdAt')
+      .select('title price category condition availability tags coverImage images seller status stock rating numOfReviews createdAt')
       .sort('-createdAt')
       .skip(skip)
       .limit(fetchLimit)

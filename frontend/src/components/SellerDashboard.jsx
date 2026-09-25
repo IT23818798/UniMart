@@ -40,6 +40,21 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
   const [loading, setLoading] = useState(!initialSeller);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [settings, setSettings] = useState({
+    businessName: initialSeller?.businessName || 'Unimart Store',
+    email: initialSeller?.email || 'seller@example.com',
+    phone: initialSeller?.phone || '+94 77 123 4567',
+    address: initialSeller?.address || 'Colombo, Sri Lanka',
+    currency: 'LKR',
+    autoReply: true,
+    orderAlerts: true,
+    lowStockAlerts: true,
+    customerReviews: true,
+    twoFactor: true,
+    publicProfile: true,
+    shippingNotifications: false,
+    seoEnabled: true
+  });
 
   useEffect(() => {
     if (initialSeller) {
@@ -123,6 +138,19 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
         onLogout();
       }
     }
+  };
+
+  const handleSettingsChange = (event) => {
+    const { name, value, type, checked } = event.target;
+    setSettings(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const saveSettings = () => {
+    console.log('Seller settings saved:', settings);
+    alert('Settings saved successfully!');
   };
 
   const getVerificationStatusColor = (status) => {
@@ -521,6 +549,175 @@ const SellerDashboard = ({ seller: initialSeller, onLogout }) => {
                    </div>
                  </div>
                </div>
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
+                  <div>
+                    <p className="text-sm font-medium text-green-700 uppercase tracking-wide">Store Preferences</p>
+                    <h2 className="text-2xl font-bold text-gray-900 mt-1">Settings Dashboard</h2>
+                  </div>
+                  <button
+                    onClick={saveSettings}
+                    className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+
+                <div className="p-6 grid grid-cols-1 xl:grid-cols-3 gap-6">
+                  <div className="xl:col-span-2 space-y-6">
+                    <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
+                      <div className="flex items-center mb-4">
+                        <div className="bg-blue-100 rounded-lg p-2 mr-3">
+                          <FaStore className="text-blue-600 h-4 w-4" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900">Business profile</h3>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="block">
+                          <span className="text-sm text-gray-700 font-medium">Business name</span>
+                          <input
+                            name="businessName"
+                            value={settings.businessName}
+                            onChange={handleSettingsChange}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-sm text-gray-700 font-medium">Display currency</span>
+                          <select
+                            name="currency"
+                            value={settings.currency}
+                            onChange={handleSettingsChange}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100"
+                          >
+                            <option value="LKR">LKR</option>
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                          </select>
+                        </label>
+                        <label className="block md:col-span-2">
+                          <span className="text-sm text-gray-700 font-medium">Business address</span>
+                          <input
+                            name="address"
+                            value={settings.address}
+                            onChange={handleSettingsChange}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-sm text-gray-700 font-medium">Email</span>
+                          <input
+                            name="email"
+                            type="email"
+                            value={settings.email}
+                            onChange={handleSettingsChange}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-sm text-gray-700 font-medium">Phone</span>
+                          <input
+                            name="phone"
+                            value={settings.phone}
+                            onChange={handleSettingsChange}
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
+                      <div className="flex items-center mb-4">
+                        <div className="bg-purple-100 rounded-lg p-2 mr-3">
+                          <FaBell className="text-purple-600 h-4 w-4" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+                      </div>
+
+                      <div className="space-y-4">
+                        {[
+                          ['orderAlerts', 'New order alerts'],
+                          ['lowStockAlerts', 'Low stock warnings'],
+                          ['customerReviews', 'Customer review notifications'],
+                          ['shippingNotifications', 'Shipping & fulfillment updates'],
+                          ['autoReply', 'Auto-reply for chat messages'],
+                        ].map(([key, label]) => (
+                          <label key={key} className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-3">
+                            <span className="text-sm text-gray-700 font-medium">{label}</span>
+                            <input
+                              type="checkbox"
+                              name={key}
+                              checked={settings[key]}
+                              onChange={handleSettingsChange}
+                              className="h-4 w-4 text-green-600 rounded focus:ring-green-500"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
+                      <div className="flex items-center mb-4">
+                        <div className="bg-yellow-100 rounded-lg p-2 mr-3">
+                          <FaGlobe className="text-yellow-600 h-4 w-4" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900">Marketplace</h3>
+                      </div>
+
+                      <div className="space-y-4">
+                        {[
+                          ['publicProfile', 'Public seller profile'],
+                          ['seoEnabled', 'SEO optimization enabled'],
+                          ['twoFactor', 'Two-factor authentication'],
+                        ].map(([key, label]) => (
+                          <label key={key} className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-3">
+                            <span className="text-sm text-gray-700 font-medium">{label}</span>
+                            <input
+                              type="checkbox"
+                              name={key}
+                              checked={settings[key]}
+                              onChange={handleSettingsChange}
+                              className="h-4 w-4 text-green-600 rounded focus:ring-green-500"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-green-50 rounded-xl border border-green-200 p-5">
+                      <div className="flex items-center mb-4">
+                        <div className="bg-green-100 rounded-lg p-2 mr-3">
+                          <FaCertificate className="text-green-600 h-4 w-4" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900">Account status</h3>
+                      </div>
+
+                      <div className="space-y-3 text-sm text-gray-700">
+                        <div className="flex justify-between">
+                          <span>Verification</span>
+                          <span className="font-semibold text-green-700">Approved</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Last updated</span>
+                          <span className="font-semibold">12 Aug 2026</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Seller level</span>
+                          <span className="font-semibold">Premium</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

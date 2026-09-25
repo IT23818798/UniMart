@@ -20,6 +20,7 @@ import {
   FaBoxOpen,
   FaCreditCard,
   FaCog,
+  FaShieldAlt,
   FaHistory,
   FaMedal,
   FaPhone,
@@ -32,6 +33,7 @@ import {
   FaLinkedin,
   FaInstagram,
   FaArrowUp
+  , FaTrash
 } from 'react-icons/fa';
 
 const BuyerProducts = lazy(() => import('./BuyerProducts'));
@@ -124,6 +126,32 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
+  const [wishlistItems, setWishlistItems] = useState([]);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
+  const [wishlistError, setWishlistError] = useState('');
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState('');
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsForm, setSettingsForm] = useState({
+    emailOrders: true,
+    emailPromotions: true,
+    emailNewsletters: false,
+    emailRecommendations: true,
+    smsOrders: false,
+    smsPromotions: false,
+    smsDeliveryUpdates: true,
+    pushOrders: true,
+    pushPromotions: false,
+    pushRecommendations: true
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [profileForm, setProfileForm] = useState({
     firstName: '',
     lastName: '',
@@ -141,6 +169,7 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [addressError, setAddressError] = useState('');
   const [addressSaving, setAddressSaving] = useState(false);
+  const [addresses, setAddresses] = useState([]);
   const [editingAddressId, setEditingAddressId] = useState(null);
   const [addressForm, setAddressForm] = useState({
     label: '',
@@ -165,6 +194,310 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
     }
   });
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('buyerToken');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
+  const hydrateProfileFormFromBuyer = (nextBuyer = {}) => {
+    const firstName = nextBuyer.firstName || '';
+    const lastName = nextBuyer.lastName || '';
+    const street = nextBuyer.address?.street || nextBuyer.addressStreet || '';
+    const city = nextBuyer.address?.city || nextBuyer.addressCity || '';
+    const state = nextBuyer.address?.state || nextBuyer.addressState || '';
+    const zipCode = nextBuyer.address?.zipCode || nextBuyer.addressZipCode || '';
+    const country = nextBuyer.address?.country || nextBuyer.addressCountry || 'USA';
+    const dob = nextBuyer.dateOfBirth ? new Date(nextBuyer.dateOfBirth).toISOString().slice(0, 10) : '';
+
+    setProfileForm({
+      firstName,
+      lastName,
+      phone: nextBuyer.phone || '',
+      dateOfBirth: dob,
+      gender: nextBuyer.gender || '',
+      addressStreet: street,
+      addressCity: city,
+      addressState: state,
+      addressZipCode: zipCode,
+      addressCountry: country
+    });
+  };
+
+  const saveProfile = async (event) => {
+    event.preventDefault();
+    try {
+      setProfileSaving(true);
+      setProfileError('');
+
+      const response = await fetch('http://127.0.0.1:5000/api/buyer/profile', getBuyerRequestOptions({
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: profileForm.firstName.trim(),
+          lastName: profileForm.lastName.trim(),
+          phone: profileForm.phone.trim(),
+          dateOfBirth: profileForm.dateOfBirth || undefined,
+          gender: profileForm.gender || undefined,
+          address: {
+            street: profileForm.addressStreet.trim(),
+            city: profileForm.addressCity.trim(),
+            state: profileForm.addressState.trim(),
+            zipCode: profileForm.addressZipCode.trim(),
+            country: profileForm.addressCountry.trim() || 'USA'
+          }
+        })
+      }));
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Unable to update your profile');
+      }
+
+      setBuyer(data.data.buyer);
+      setIsEditingProfile(false);
+      setProfileError('Profile updated successfully.');
+    } catch (error) {
+      console.error('Error updating buyer profile:', error);
+      setProfileError(error.message || 'Unable to update your profile.');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const loadAddresses = async () => {
+    try {
+      setAddressesLoading(true);
+      setAddressError('');
+      const response = await fetch('http://127.0.0.1:5000/api/buyer/addresses', getBuyerRequestOptions());
+      if (!response.ok) {
+        throw new Error('Failed to load saved addresses');
+      }
+      const data = await response.json();
+      if (data?.success && Array.isArray(data?.data?.addresses)) {
+        setAddresses(data.data.addresses);
+        return data.data.addresses;
+      }
+      setAddresses([]);
+      return [];
+    } catch (error) {
+      console.error('Error loading addresses:', error);
+      setAddressError('Unable to load saved addresses right now.');
+      return [];
+    } finally {
+      setAddressesLoading(false);
+    }
+  };
+
+  const resetAddressForm = () => {
+    setEditingAddressId(null);
+    setAddressForm({
+      label: '',
+      street: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: 'USA',
+      instructions: '',
+      isDefault: false
+    });
+  };
+
+  const saveAddress = async (event) => {
+    event.preventDefault();
+    try {
+      setAddressSaving(true);
+      setAddressError('');
+      const isEditing = Boolean(editingAddressId);
+      const endpoint = isEditing
+        ? `http://127.0.0.1:5000/api/buyer/addresses/${editingAddressId}`
+        : 'http://127.0.0.1:5000/api/buyer/addresses';
+      const response = await fetch(endpoint, getBuyerRequestOptions({
+        method: isEditing ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addressForm)
+      }));
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Unable to save address');
+      }
+
+      setAddresses(data.data.addresses || []);
+      resetAddressForm();
+    } catch (error) {
+      console.error('Error saving address:', error);
+      setAddressError(error.message || 'Unable to save address.');
+    } finally {
+      setAddressSaving(false);
+    }
+  };
+
+  const editAddress = (address) => {
+    setEditingAddressId(address._id);
+    setAddressForm({
+      label: address.label || '',
+      street: address.street || '',
+      city: address.city || '',
+      state: address.state || '',
+      zipCode: address.zipCode || '',
+      country: address.country || 'USA',
+      instructions: address.instructions || '',
+      isDefault: Boolean(address.isDefault)
+    });
+    setAddressError('');
+  };
+
+  const deleteAddress = async (addressId) => {
+    try {
+      setAddressError('');
+      const response = await fetch(`http://127.0.0.1:5000/api/buyer/addresses/${addressId}`, getBuyerRequestOptions({ method: 'DELETE' }));
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Unable to delete address');
+      }
+      setAddresses(data.data.addresses || []);
+      if (editingAddressId === addressId) resetAddressForm();
+    } catch (error) {
+      console.error('Error deleting address:', error);
+      setAddressError(error.message || 'Unable to delete address.');
+    }
+  };
+
+  const fetchWishlist = async () => {
+    try {
+      setWishlistLoading(true);
+      setWishlistError('');
+
+      const response = await fetch('http://127.0.0.1:5000/api/buyer/wishlist', getBuyerRequestOptions());
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch wishlist');
+      }
+
+      const data = await response.json();
+      const items = Array.isArray(data?.data?.wishlist) ? data.data.wishlist : [];
+      setWishlistItems(items);
+    } catch (error) {
+      console.error('Error fetching wishlist:', error);
+      setWishlistError('Unable to load your wishlist right now.');
+      setWishlistItems([]);
+    } finally {
+      setWishlistLoading(false);
+    }
+  };
+
+  const removeWishlistItem = async (productId) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:5000/api/buyer/wishlist/${productId}`, {
+        method: 'DELETE',
+        ...getBuyerRequestOptions(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove wishlist item');
+      }
+
+      setWishlistItems((prev) => prev.filter((item) => item._id !== productId));
+    } catch (error) {
+      console.error('Error removing wishlist item:', error);
+      setWishlistError('Unable to remove this product from your wishlist.');
+    }
+  };
+
+  const hydrateSettingsFromBuyer = (nextBuyer = {}) => {
+    const notifications = nextBuyer.preferences?.notifications || {};
+    setSettingsForm({
+      emailOrders: notifications.email?.orders ?? true,
+      emailPromotions: notifications.email?.promotions ?? true,
+      emailNewsletters: notifications.email?.newsletters ?? false,
+      emailRecommendations: notifications.email?.recommendations ?? true,
+      smsOrders: notifications.sms?.orders ?? false,
+      smsPromotions: notifications.sms?.promotions ?? false,
+      smsDeliveryUpdates: notifications.sms?.delivery_updates ?? true,
+      pushOrders: notifications.push?.orders ?? true,
+      pushPromotions: notifications.push?.promotions ?? false,
+      pushRecommendations: notifications.push?.recommendations ?? true
+    });
+  };
+
+  const saveSettings = async (event) => {
+    event.preventDefault();
+    try {
+      setSettingsSaving(true);
+      setSettingsMessage('');
+      setSettingsError('');
+
+      const response = await fetch('http://127.0.0.1:5000/api/buyer/profile', getBuyerRequestOptions({
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preferences: {
+            ...(buyer?.preferences || {}),
+            notifications: {
+              email: {
+                orders: settingsForm.emailOrders,
+                promotions: settingsForm.emailPromotions,
+                newsletters: settingsForm.emailNewsletters,
+                recommendations: settingsForm.emailRecommendations
+              },
+              sms: {
+                orders: settingsForm.smsOrders,
+                promotions: settingsForm.smsPromotions,
+                delivery_updates: settingsForm.smsDeliveryUpdates
+              },
+              push: {
+                orders: settingsForm.pushOrders,
+                promotions: settingsForm.pushPromotions,
+                recommendations: settingsForm.pushRecommendations
+              }
+            }
+          }
+        })
+      }));
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Unable to save notification settings');
+      }
+
+      setBuyer(data.data.buyer);
+      setSettingsMessage('Notification preferences saved.');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      setSettingsError(error.message || 'Unable to save notification settings.');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const changePassword = async (event) => {
+    event.preventDefault();
+    try {
+      setPasswordSaving(true);
+      setPasswordMessage('');
+      setPasswordError('');
+
+      const response = await fetch('http://127.0.0.1:5000/api/buyer/change-password', getBuyerRequestOptions({
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(passwordForm)
+      }));
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Unable to change password');
+      }
+
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordMessage('Password changed successfully.');
+    } catch (error) {
+      console.error('Error changing password:', error);
+      setPasswordError(error.message || 'Unable to change password.');
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (initialBuyer) {
       setBuyer(initialBuyer);
@@ -186,6 +519,18 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
     if (activeTab === 'addresses') {
       loadAddresses();
+    }
+
+    if (activeTab === 'wishlist') {
+      fetchWishlist();
+    }
+
+    if (activeTab === 'settings') {
+      hydrateSettingsFromBuyer(buyer);
+      setSettingsMessage('');
+      setSettingsError('');
+      setPasswordMessage('');
+      setPasswordError('');
     }
   }, [activeTab, buyer, isEditingProfile]);
 
@@ -427,19 +772,19 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
 
           {/* Center Navigation Links */}
           <div className="hidden md:flex items-center gap-8">
-            <a href="#" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">
+            <a href="/#home" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">
               <FaHome className="inline mr-2" />
               Home
             </a>
-            <a href="#" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">
+            <a href="/#about" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">
               <FaInfoCircle className="inline mr-2" />
               About
             </a>
-            <a href="#" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">
+            <a href="/#services" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">
               <FaCog className="inline mr-2" />
               Services
             </a>
-            <a href="#" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">
+            <a href="/#contact" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">
               <FaPhone className="inline mr-2" />
               Contact
             </a>
@@ -712,6 +1057,496 @@ const BuyerDashboard = ({ buyer: initialBuyer, onLogout }) => {
               >
                 Retry
               </button>
+            </div>
+          )}
+
+          {activeTab === 'wishlist' && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Wishlist</h2>
+                  <p className="text-gray-600">Saved products from local sellers</p>
+                </div>
+                <span className="rounded-full bg-red-100 text-red-700 px-3 py-1 text-sm font-semibold">
+                  {wishlistItems.length} saved
+                </span>
+              </div>
+
+              {wishlistLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                  <span className="ml-3 text-gray-600">Loading wishlist...</span>
+                </div>
+              ) : wishlistError ? (
+                <div className="text-center py-20 bg-red-50 border border-red-200 rounded-xl">
+                  <div className="text-red-500 text-4xl mb-3">⚠️</div>
+                  <p className="text-red-700 font-medium">{wishlistError}</p>
+                  <button
+                    onClick={fetchWishlist}
+                    className="mt-4 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : wishlistItems.length === 0 ? (
+                <div className="text-center py-20 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
+                  <div className="text-5xl mb-4">💛</div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Your wishlist is empty</h3>
+                  <p className="text-gray-600 mb-4">Save products you love to compare and buy later.</p>
+                  <button
+                    onClick={() => setActiveTab('products')}
+                    className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Browse products
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {wishlistItems.map((product) => (
+                    <div key={product._id} className="border border-gray-200 rounded-2xl overflow-hidden bg-gray-50 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="relative h-48 bg-white">
+                        <img
+                          src={product.images?.[0] || 'https://via.placeholder.com/400x300?text=No+Image'}
+                          alt={product.title || product.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x300?text=No+Image'; }}
+                        />
+                        <button
+                          onClick={() => removeWishlistItem(product._id)}
+                          className="absolute top-3 right-3 bg-white/90 rounded-full p-2 text-red-500 hover:bg-red-50"
+                          aria-label="Remove from wishlist"
+                        >
+                          <FaTrash className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <h3 className="text-lg font-bold text-gray-900 truncate flex-1">
+                            {product.title || product.name}
+                          </h3>
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full whitespace-nowrap">
+                            {product.category || 'General'}
+                          </span>
+                        </div>
+
+                        <p className="text-2xl font-extrabold text-blue-700 mt-2">Rs {product.price}</p>
+
+                        <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
+                          <span>{product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}</span>
+                          <span>{product.condition || 'New'}</span>
+                        </div>
+
+                        <div className="mt-4 flex gap-2">
+                          <button
+                            onClick={() => {
+                              setViewingProduct(product);
+                              setActiveTab('product_detail');
+                            }}
+                            className="flex-1 bg-gray-900 text-white py-2.5 rounded-lg hover:bg-gray-800 transition-colors"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedProduct(product);
+                              setOrderQuantity(1);
+                            }}
+                            className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            Buy now
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'addresses' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Saved addresses</h2>
+                  <p className="text-gray-600">Manage delivery and pickup locations for your orders.</p>
+                </div>
+                <button onClick={resetAddressForm} className="rounded-lg bg-blue-600 px-4 py-2.5 text-white font-semibold hover:bg-blue-700">
+                  Add address
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-6 items-start">
+                <div className="space-y-4">
+                  {addressesLoading ? (
+                    <div className="bg-white rounded-xl border border-gray-100 p-12 text-center text-gray-500">Loading saved addresses...</div>
+                  ) : addresses.length === 0 ? (
+                    <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
+                      <FaMapMarkerAlt className="mx-auto h-10 w-10 text-blue-500 mb-3" />
+                      <h3 className="text-lg font-bold text-gray-900">No saved addresses</h3>
+                      <p className="text-gray-600 mt-1">Add an address to speed up checkout.</p>
+                    </div>
+                  ) : addresses.map((address) => (
+                    <div key={address._id} className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex gap-3">
+                          <div className="rounded-lg bg-blue-50 p-3 text-blue-600"><FaMapMarkerAlt /></div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-bold text-gray-900">{address.label}</h3>
+                              {address.isDefault && <span className="rounded-full bg-emerald-100 text-emerald-700 px-2.5 py-1 text-xs font-semibold">Default</span>}
+                            </div>
+                            <p className="mt-2 text-gray-700">{address.street}</p>
+                            <p className="text-gray-600">{address.city}, {address.state} {address.zipCode}</p>
+                            <p className="text-gray-600">{address.country}</p>
+                            {address.instructions && <p className="mt-2 text-sm text-gray-500">Note: {address.instructions}</p>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <button onClick={() => editAddress(address)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Edit</button>
+                          <button onClick={() => deleteAddress(address._id)} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">Delete</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <form onSubmit={saveAddress} className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+                  <h3 className="text-lg font-bold text-gray-900">{editingAddressId ? 'Edit address' : 'New address'}</h3>
+                  <div className="mt-4 space-y-4">
+                    {[
+                      ['label', 'Label', 'e.g. Home'],
+                      ['street', 'Street address', 'Street and house number'],
+                      ['city', 'City', 'City'],
+                      ['state', 'State / province', 'State'],
+                      ['zipCode', 'ZIP / postal code', 'ZIP code'],
+                      ['country', 'Country', 'Country']
+                    ].map(([field, label, placeholder]) => (
+                      <label key={field} className="block text-sm font-medium text-gray-700">
+                        {label}
+                        <input
+                          value={addressForm[field]}
+                          onChange={(event) => setAddressForm((prev) => ({ ...prev, [field]: event.target.value }))}
+                          placeholder={placeholder}
+                          required
+                          className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                        />
+                      </label>
+                    ))}
+                    <label className="block text-sm font-medium text-gray-700">
+                      Delivery instructions
+                      <textarea value={addressForm.instructions} onChange={(event) => setAddressForm((prev) => ({ ...prev, instructions: event.target.value }))} rows="3" className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input type="checkbox" checked={addressForm.isDefault} onChange={(event) => setAddressForm((prev) => ({ ...prev, isDefault: event.target.checked }))} className="h-4 w-4 text-blue-600 rounded" />
+                      Make this my default address
+                    </label>
+                  </div>
+                  {addressError && <p className="mt-4 text-sm font-medium text-red-600">{addressError}</p>}
+                  <div className="mt-5 flex justify-end gap-2">
+                    {editingAddressId && <button type="button" onClick={resetAddressForm} className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button>}
+                    <button type="submit" disabled={addressSaving} className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">{addressSaving ? 'Saving...' : editingAddressId ? 'Update address' : 'Save address'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'loyalty' && (
+            <div className="space-y-6">
+              {(() => {
+                const points = dashboardStats?.buyerInfo?.loyaltyPoints ?? buyer?.purchaseStats?.loyaltyPoints ?? 0;
+                const levels = [
+                  { name: 'Bronze', minimum: 0, color: 'orange' },
+                  { name: 'Silver', minimum: 500, color: 'gray' },
+                  { name: 'Gold', minimum: 2000, color: 'yellow' },
+                  { name: 'Platinum', minimum: 5000, color: 'slate' },
+                  { name: 'Diamond', minimum: 10000, color: 'blue' }
+                ];
+                const currentIndex = levels.reduce((index, level, indexValue) => points >= level.minimum ? indexValue : index, 0);
+                const current = levels[currentIndex];
+                const next = levels[currentIndex + 1];
+                const progress = next ? Math.min(100, Math.round(((points - current.minimum) / (next.minimum - current.minimum)) * 100)) : 100;
+                return (
+                  <>
+                    <div className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-6 text-white shadow-sm">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-orange-100 font-medium">Your rewards balance</p>
+                          <h2 className="text-4xl font-extrabold mt-1">{points.toLocaleString()} points</h2>
+                          <p className="text-orange-100 mt-2">Keep shopping locally to unlock better rewards.</p>
+                        </div>
+                        <FaMedal className="h-16 w-16 text-yellow-100" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                          <div><h3 className="text-lg font-bold text-gray-900">{current.name} level</h3><p className="text-sm text-gray-500">{next ? `${next.minimum - points} points to ${next.name}` : 'You reached the highest level'}</p></div>
+                          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${getLoyaltyLevelColor(current.name)}`}>{current.name}</span>
+                        </div>
+                        <div className="h-3 rounded-full bg-gray-100 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all" style={{ width: `${progress}%` }} /></div>
+                        <div className="mt-2 flex justify-between text-xs text-gray-500"><span>{current.minimum.toLocaleString()} points</span><span>{next ? `${next.minimum.toLocaleString()} points` : 'Maximum level'}</span></div>
+                      </div>
+                      <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm"><h3 className="text-lg font-bold text-gray-900 mb-4">Member benefits</h3><ul className="space-y-3 text-sm text-gray-600"><li className="flex gap-2"><span className="text-emerald-500">✓</span> Earn points on every order</li><li className="flex gap-2"><span className="text-emerald-500">✓</span> Access local seller offers</li><li className="flex gap-2"><span className="text-emerald-500">✓</span> Track your rewards progress</li></ul></div>
+                    </div>
+                    <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm"><h3 className="text-lg font-bold text-gray-900">How to earn more points</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4"><div className="rounded-lg bg-blue-50 p-4"><FaShoppingCart className="text-blue-600 mb-2" /><p className="font-semibold text-gray-900">Shop local</p><p className="text-sm text-gray-600 mt-1">Earn points when you complete orders from sellers.</p></div><div className="rounded-lg bg-emerald-50 p-4"><FaStar className="text-emerald-600 mb-2" /><p className="font-semibold text-gray-900">Review purchases</p><p className="text-sm text-gray-600 mt-1">Share useful feedback about products you buy.</p></div><div className="rounded-lg bg-purple-50 p-4"><FaGift className="text-purple-600 mb-2" /><p className="font-semibold text-gray-900">Watch for offers</p><p className="text-sm text-gray-600 mt-1">Check back regularly for seasonal rewards.</p></div></div></div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+          {activeTab === 'profile' && buyer && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-blue-700 to-indigo-600 rounded-2xl p-6 text-white shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center">
+                      <FaUser className="h-8 w-8" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">My profile</h2>
+                      <p className="text-blue-100">Keep your contact and delivery information up to date.</p>
+                    </div>
+                  </div>
+                  {!isEditingProfile && (
+                    <button
+                      onClick={() => {
+                        hydrateProfileFormFromBuyer(buyer);
+                        setProfileError('');
+                        setIsEditingProfile(true);
+                      }}
+                      className="rounded-lg bg-white px-4 py-2.5 text-blue-700 font-semibold hover:bg-blue-50"
+                    >
+                      Edit profile
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <form onSubmit={saveProfile} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Personal information</h3>
+                    <p className="text-sm text-gray-500">This information is used for orders and account communication.</p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getMembershipColor(buyer.membership?.type || 'basic')}`}>
+                    {buyer.membership?.type || 'basic'} member
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {[
+                    ['firstName', 'First name', 'text'],
+                    ['lastName', 'Last name', 'text'],
+                    ['phone', 'Phone number', 'tel'],
+                    ['dateOfBirth', 'Date of birth', 'date']
+                  ].map(([field, label, type]) => (
+                    <label key={field} className="text-sm font-medium text-gray-700">
+                      {label}
+                      <input
+                        type={type}
+                        value={profileForm[field]}
+                        onChange={(event) => setProfileForm((prev) => ({ ...prev, [field]: event.target.value }))}
+                        disabled={!isEditingProfile}
+                        required={field !== 'dateOfBirth'}
+                        className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 disabled:bg-gray-50 disabled:text-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                      />
+                    </label>
+                  ))}
+
+                  <label className="text-sm font-medium text-gray-700">
+                    Email address
+                    <input type="email" value={buyer.email || ''} disabled className="mt-2 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-gray-500" />
+                  </label>
+
+                  <label className="text-sm font-medium text-gray-700">
+                    Gender
+                    <select
+                      value={profileForm.gender}
+                      onChange={(event) => setProfileForm((prev) => ({ ...prev, gender: event.target.value }))}
+                      disabled={!isEditingProfile}
+                      className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 disabled:bg-gray-50 disabled:text-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                    >
+                      <option value="">Prefer not to say</option>
+                      <option value="female">Female</option>
+                      <option value="male">Male</option>
+                      <option value="other">Other</option>
+                      <option value="prefer_not_to_say">Prefer not to say</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="mt-8 border-t border-gray-100 pt-6">
+                  <h3 className="text-lg font-bold text-gray-900">Primary address</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
+                    {[
+                      ['addressStreet', 'Street address'],
+                      ['addressCity', 'City'],
+                      ['addressState', 'State / province'],
+                      ['addressZipCode', 'ZIP / postal code'],
+                      ['addressCountry', 'Country']
+                    ].map(([field, label]) => (
+                      <label key={field} className="text-sm font-medium text-gray-700">
+                        {label}
+                        <input
+                          type="text"
+                          value={profileForm[field]}
+                          onChange={(event) => setProfileForm((prev) => ({ ...prev, [field]: event.target.value }))}
+                          disabled={!isEditingProfile}
+                          className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 disabled:bg-gray-50 disabled:text-gray-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {profileError && (
+                  <p className={`mt-5 text-sm font-medium ${profileError.includes('successfully') ? 'text-green-600' : 'text-red-600'}`}>
+                    {profileError}
+                  </p>
+                )}
+
+                {isEditingProfile && (
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button type="button" onClick={() => { setIsEditingProfile(false); hydrateProfileFormFromBuyer(buyer); }} className="rounded-lg border border-gray-300 px-5 py-2.5 text-gray-700 font-semibold hover:bg-gray-50">
+                      Cancel
+                    </button>
+                    <button type="submit" disabled={profileSaving} className="rounded-lg bg-blue-600 px-5 py-2.5 text-white font-semibold hover:bg-blue-700 disabled:opacity-60">
+                      {profileSaving ? 'Saving...' : 'Save profile'}
+                    </button>
+                  </div>
+                )}
+              </form>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <FaMedal className="text-amber-500 h-5 w-5 mb-3" />
+                  <p className="text-sm text-gray-500">Loyalty level</p>
+                  <p className="mt-1 text-lg font-bold text-gray-900 capitalize">{buyer.loyaltyLevel || 'Bronze'}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <FaCalendarAlt className="text-blue-500 h-5 w-5 mb-3" />
+                  <p className="text-sm text-gray-500">Member since</p>
+                  <p className="mt-1 text-lg font-bold text-gray-900">{buyer.createdAt ? new Date(buyer.createdAt).toLocaleDateString() : 'Recently'}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <FaShoppingCart className="text-emerald-500 h-5 w-5 mb-3" />
+                  <p className="text-sm text-gray-500">Total orders</p>
+                  <p className="mt-1 text-lg font-bold text-gray-900">{buyer.purchaseStats?.totalOrders || 0}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+              <div className="bg-gradient-to-r from-blue-700 to-cyan-600 rounded-2xl p-6 text-white shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-xl bg-white/15 p-3">
+                    <FaCog className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Account settings</h2>
+                    <p className="text-blue-100">Manage notifications and keep your account secure.</p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={saveSettings} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <FaBell className="text-blue-600 h-5 w-5" />
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Notification preferences</h3>
+                    <p className="text-sm text-gray-500">Choose the updates you want to receive.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {[
+                    { title: 'Email', items: [['emailOrders', 'Order updates'], ['emailPromotions', 'Promotions'], ['emailNewsletters', 'Newsletters'], ['emailRecommendations', 'Recommendations']] },
+                    { title: 'SMS', items: [['smsOrders', 'Order updates'], ['smsPromotions', 'Promotions'], ['smsDeliveryUpdates', 'Delivery updates']] },
+                    { title: 'Push notifications', items: [['pushOrders', 'Order updates'], ['pushPromotions', 'Promotions'], ['pushRecommendations', 'Recommendations']] }
+                  ].map((group) => (
+                    <div key={group.title} className="rounded-xl border border-gray-200 p-4">
+                      <h4 className="font-semibold text-gray-900 mb-3">{group.title}</h4>
+                      <div className="space-y-3">
+                        {group.items.map(([field, label]) => (
+                          <label key={field} className="flex items-center justify-between gap-3 text-sm text-gray-700 cursor-pointer">
+                            <span>{label}</span>
+                            <input
+                              type="checkbox"
+                              checked={settingsForm[field]}
+                              onChange={(event) => setSettingsForm((prev) => ({ ...prev, [field]: event.target.checked }))}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {(settingsMessage || settingsError) && (
+                  <p className={`mt-4 text-sm font-medium ${settingsError ? 'text-red-600' : 'text-green-600'}`}>
+                    {settingsError || settingsMessage}
+                  </p>
+                )}
+                <div className="mt-6 flex justify-end">
+                  <button type="submit" disabled={settingsSaving} className="rounded-lg bg-blue-600 px-5 py-2.5 text-white font-semibold hover:bg-blue-700 disabled:opacity-60">
+                    {settingsSaving ? 'Saving...' : 'Save preferences'}
+                  </button>
+                </div>
+              </form>
+
+              <form onSubmit={changePassword} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <FaShieldAlt className="text-emerald-600 h-5 w-5" />
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Password and security</h3>
+                    <p className="text-sm text-gray-500">Use a strong password you do not reuse elsewhere.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    ['currentPassword', 'Current password'],
+                    ['newPassword', 'New password'],
+                    ['confirmPassword', 'Confirm new password']
+                  ].map(([field, label]) => (
+                    <label key={field} className="text-sm font-medium text-gray-700">
+                      {label}
+                      <input
+                        type="password"
+                        value={passwordForm[field]}
+                        onChange={(event) => setPasswordForm((prev) => ({ ...prev, [field]: event.target.value }))}
+                        className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                        required
+                      />
+                    </label>
+                  ))}
+                </div>
+                {(passwordMessage || passwordError) && (
+                  <p className={`mt-4 text-sm font-medium ${passwordError ? 'text-red-600' : 'text-green-600'}`}>
+                    {passwordError || passwordMessage}
+                  </p>
+                )}
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs text-gray-500">Passwords must be at least 6 characters.</p>
+                  <button type="submit" disabled={passwordSaving} className="rounded-lg bg-gray-900 px-5 py-2.5 text-white font-semibold hover:bg-gray-800 disabled:opacity-60">
+                    {passwordSaving ? 'Updating...' : 'Change password'}
+                  </button>
+                </div>
+              </form>
+
+              <div className="bg-white rounded-xl shadow-sm border border-red-100 p-6">
+                <h3 className="text-lg font-bold text-gray-900">Account session</h3>
+                <p className="mt-1 text-sm text-gray-500">Sign out from this device when you are finished shopping.</p>
+                <button type="button" onClick={handleLogout} className="mt-4 rounded-lg border border-red-200 px-5 py-2.5 text-red-600 font-semibold hover:bg-red-50">
+                  Sign out
+                </button>
+              </div>
             </div>
           )}
 

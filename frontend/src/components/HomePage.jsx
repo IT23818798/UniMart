@@ -87,6 +87,10 @@ export default function HomePage() {
     setIsRegisterDropdownOpen(false);
   };
 
+  const handleGetStarted = () => {
+    handleLogin('buyer');
+  };
+
   const closeLoginPage = () => {
     setShowLoginPage(false);
     setLoginType('');
@@ -187,7 +191,7 @@ export default function HomePage() {
                 </button>
               </div>
             </div>
-            <button className="nav-btn-primary">
+            <button className="nav-btn-primary" onClick={handleGetStarted}>
               <FaSignInAlt className="btn-icon" />
               Get Started
             </button>
@@ -258,7 +262,7 @@ export default function HomePage() {
                 </button>
               </div>
             </div>
-            <button className="nav-btn-primary" onClick={toggleMenu}>
+            <button className="nav-btn-primary" onClick={() => { toggleMenu(); handleGetStarted(); }}>
               <FaSignInAlt className="btn-icon" />
               Get Started
             </button>
@@ -282,11 +286,11 @@ export default function HomePage() {
             event tickets, and more—securely traded between students and campus communities.
           </p>
           <div className="hero-buttons">
-            <button className="btn-primary">
+            <button className="btn-primary" onClick={() => handleRegister('seller')}>
               <FaStore />
               Start Selling
             </button>
-            <button className="btn-secondary">
+            <button className="btn-secondary" onClick={() => handleLogin('buyer')}>
               <FaShoppingCart />
               Browse Deals
             </button>
@@ -386,7 +390,7 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="footer-section">
+      <footer id="contact" className="footer-section">
         <div className="container">
           {/* Footer Content */}
           <div className="footer-content">
@@ -437,12 +441,12 @@ export default function HomePage() {
             <div className="footer-column">
               <h3 className="footer-heading">Our Services</h3>
               <ul className="footer-links">
-                <li><a href="#">Item Listings</a></li>
-                <li><a href="#">Buyer Dashboard</a></li>
-                <li><a href="#">Seller Dashboard</a></li>
-                <li><a href="#">Admin Moderation</a></li>
-                <li><a href="#">Secure Login</a></li>
-                <li><a href="#">Campus Support</a></li>
+                <li><a href="#services">Item Listings</a></li>
+                <li><a href="/buyer-dashboard">Buyer Dashboard</a></li>
+                <li><a href="/seller-dashboard">Seller Dashboard</a></li>
+                <li><a href="/admin-dashboard">Admin Moderation</a></li>
+                <li><a href="#home" onClick={handleGetStarted}>Secure Login</a></li>
+                <li><a href="#contact">Campus Support</a></li>
               </ul>
             </div>
 

@@ -563,6 +563,55 @@ const addToWishlist = async (req, res) => {
   }
 };
 
+const getBuyerWishlist = async (req, res) => {
+  try {
+    const buyer = await Buyer.findById(req.buyer.id)
+      .populate({
+        path: 'wishlist.productId',
+        select: 'title name price images category seller condition availability stock tags description',
+        populate: {
+          path: 'seller',
+          select: 'businessName name location'
+        }
+      })
+      .populate('wishlist.sellerId', 'businessName name location');
+
+    if (!buyer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Buyer not found'
+      });
+    }
+
+    const wishlist = (buyer.wishlist || [])
+      .map((item) => {
+        if (!item.productId) return null;
+
+        const product = item.productId.toObject ? item.productId.toObject() : item.productId;
+        return {
+          ...product,
+          _id: product._id || product.id,
+          seller: item.sellerId || product.seller || null,
+          addedAt: item.addedAt
+        };
+      })
+      .filter(Boolean);
+
+    res.json({
+      success: true,
+      data: {
+        wishlist
+      }
+    });
+  } catch (error) {
+    console.error('Get wishlist error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching wishlist'
+    });
+  }
+};
+
 const removeFromWishlist = async (req, res) => {
   try {
     const { productId } = req.params;
@@ -831,6 +880,7 @@ module.exports = {
   changePassword,
   getDashboardStats,
   addToWishlist,
+  getBuyerWishlist,
   removeFromWishlist,
   addDeliveryAddress,
   getDeliveryAddresses,

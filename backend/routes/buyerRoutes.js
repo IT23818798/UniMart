@@ -43,17 +43,9 @@ router.put('/change-password', authenticateBuyer, changePassword);
 router.get('/dashboard/stats', authenticateBuyer, getDashboardStats);
 
 // Wishlist management
-router.post('/wishlist', addToWishlist);
-router.delete('/wishlist/:productId', removeFromWishlist);
-router.get('/wishlist', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Wishlist endpoint - implement with full product details',
-    data: {
-      wishlist: []
-    }
-  });
-});
+router.post('/wishlist', authenticateBuyer, addToWishlist);
+router.delete('/wishlist/:productId', authenticateBuyer, removeFromWishlist);
+router.get('/wishlist', authenticateBuyer, getBuyerWishlist);
 
 // Address management
 router.post('/addresses', authenticateBuyer, addDeliveryAddress);
